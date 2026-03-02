@@ -1,0 +1,77 @@
+# DSSP Reference Implementation — Docker Compose
+#
+# Usage (simulated enclave, default):
+#   docker compose up --build
+#
+# Usage (Gramine enclave — gramine-direct simulation):
+#   docker compose -f docker-compose.yml -f docker-compose.gramine.yml up --build
+#
+# Usage (Gramine + real Intel SGX):
+#   docker compose -f docker-compose.yml -f docker-compose.gramine.yml \
+#       -f docker-compose.sgx.yml up --build
+#
+# Open http://localhost:8080 for the live dashboard
+#
+# Architecture:
+#   storage  → MinIO (document owner's storage)
+#   gateway  → DSSP Gateway (orchestrator, validator, dashboard)
+#   setup    → Init container (uploads sample docs, registers manifest+contract)
+#   agent    → Enclave agent (extracts, redacts, scans, attests)
+
+services:
+  storage:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: dssp-owner
+      MINIO_ROOT_PASSWORD: dssp-owner-secret-key
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "8080:8080"
+    environment:
+      DSSP_VERSION: "0.1"
+      DSSP_ATTESTATION_MODE: simulated  # simulated | verify
+      LOG_LEVEL: info
+      MINIO_AGENT_ACCESS_KEY: dssp-owner
+      MINIO_AGENT_SECRET_KEY: dssp-owner-secret-key
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  setup:
+    build: ./setup
+    depends_on:
+      storage:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    environment:
+      MINIO_ENDPOINT: storage:9000
+      MINIO_ACCESS_KEY: dssp-owner
+      MINIO_SECRET_KEY: dssp-owner-secret-key
+      GATEWAY_URL: http://gateway:8080
+
+  agent:
+    build: ./agent
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    environment:
+      MINIO_ENDPOINT: storage:9000
+      MINIO_ACCESS_KEY: dssp-owner
+      MINIO_SECRET_KEY: dssp-owner-secret-key
+      GATEWAY_URL: http://gateway:8080
+      ENCLAVE_MODE: simulated
+

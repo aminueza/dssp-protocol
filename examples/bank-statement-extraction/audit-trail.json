@@ -1,0 +1,347 @@
+[
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-0000000000000000",
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "sequence_number": 0,
+    "timestamp": "2026-02-15T10:00:00Z",
+    "event_type": "ledger.genesis",
+    "actor": {
+      "type": "system"
+    },
+    "action": {
+      "reason": "Audit ledger initialized for engagement engagement-2026-q1-annual-audit"
+    },
+    "outcome": {
+      "status": "success"
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-1a2b3c4d5e6f7890",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "sequence_number": 1,
+    "timestamp": "2026-02-15T10:30:00Z",
+    "event_type": "manifest.created",
+    "actor": {
+      "type": "owner",
+      "org_id": "org-acme-corp",
+      "user_id": "user-admin-001"
+    },
+    "subject": {
+      "type": "manifest",
+      "manifest_id": "mf-8a3b2c1d4e5f6789"
+    },
+    "action": {
+      "reason": "Manifest created for Q1 2026 annual audit engagement with 3 documents"
+    },
+    "outcome": {
+      "status": "success",
+      "documents_touched": 3
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-2b3c4d5e6f789012",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "sequence_number": 2,
+    "timestamp": "2026-02-15T10:35:00Z",
+    "event_type": "contract.created",
+    "actor": {
+      "type": "owner",
+      "org_id": "org-acme-corp",
+      "user_id": "user-admin-001"
+    },
+    "subject": {
+      "type": "contract",
+      "contract_id": "ct-9e8f7d6c5b4a3928"
+    },
+    "action": {
+      "contract_id": "ct-9e8f7d6c5b4a3928",
+      "contract_version": 1,
+      "reason": "Processing contract granted to org-docuverify for bank statement extraction"
+    },
+    "outcome": {
+      "status": "success"
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-3c4d5e6f78901234",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "sequence_number": 3,
+    "timestamp": "2026-02-27T14:25:00Z",
+    "event_type": "session.started",
+    "actor": {
+      "type": "agent",
+      "org_id": "org-docuverify",
+      "agent_id": "ag-d1e2f3a4b5c6d7e8"
+    },
+    "subject": {
+      "type": "session",
+      "session_id": "ps-1a2b3c4d5e6f7890",
+      "contract_id": "ct-9e8f7d6c5b4a3928"
+    },
+    "action": {
+      "contract_id": "ct-9e8f7d6c5b4a3928",
+      "contract_version": 1,
+      "enclave_attestation": {
+        "enclave_type": "sev-snp",
+        "measurement": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+        "agent_hash": {
+          "algorithm": "sha-256",
+          "value": "abc123def456789abc123def456789abc123def456789abc123def456789abcd"
+        },
+        "timestamp": "2026-02-27T14:25:00Z",
+        "signed_by": "acme-ca",
+        "signature": "TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcmsu"
+      }
+    },
+    "outcome": {
+      "status": "success"
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-4d5e6f7890123456",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "sequence_number": 4,
+    "timestamp": "2026-02-27T14:25:05Z",
+    "event_type": "access.granted",
+    "actor": {
+      "type": "system"
+    },
+    "subject": {
+      "type": "document_set",
+      "document_ids": ["doc-f47ac10b58cc4372", "doc-a58bd21c69dd5483"],
+      "document_hashes": [
+        { "algorithm": "sha-256", "value": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2" },
+        { "algorithm": "sha-256", "value": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3" }
+      ]
+    },
+    "action": {
+      "operations": ["extract_text", "extract_tables", "extract_key_value"],
+      "contract_id": "ct-9e8f7d6c5b4a3928",
+      "reason": "Scoped access token issued to agent ag-d1e2f3a4b5c6d7e8 for 2 bank statement documents"
+    },
+    "outcome": {
+      "status": "success",
+      "documents_touched": 2
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-4e5f6a7890123457",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+    },
+    "sequence_number": 5,
+    "timestamp": "2026-02-27T14:25:06Z",
+    "event_type": "sanitization.applied",
+    "actor": {
+      "type": "system"
+    },
+    "subject": {
+      "type": "document_set",
+      "session_id": "ps-1a2b3c4d5e6f7890",
+      "document_ids": ["doc-f47ac10b58cc4372", "doc-a58bd21c69dd5483"]
+    },
+    "action": {
+      "contract_id": "ct-9e8f7d6c5b4a3928",
+      "reason": "Document sanitization applied: stripped hidden text, javascript, embedded files. Unicode normalized to NFC. Injection pattern scan passed (0 patterns detected)."
+    },
+    "outcome": {
+      "status": "success",
+      "documents_touched": 2
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-5e6f789012345678",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "sequence_number": 6,
+    "timestamp": "2026-02-27T14:29:59Z",
+    "event_type": "result.scan_passed",
+    "actor": {
+      "type": "system"
+    },
+    "subject": {
+      "type": "result",
+      "result_id": "rs-5c4b3a2f1e0d9c8b",
+      "session_id": "ps-1a2b3c4d5e6f7890",
+      "contract_id": "ct-9e8f7d6c5b4a3928"
+    },
+    "action": {
+      "result_id": "rs-5c4b3a2f1e0d9c8b",
+      "reason": "Result scanning completed: 2 scanners ran (regex, ner). Overall verdict: PASSED. 3 fields modified by scan (1 IBAN regex match, 2 NER entities redacted). Scan duration: 1200ms."
+    },
+    "outcome": {
+      "status": "success",
+      "pii_exposure": "redacted_only"
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-5f6a789012345679",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+    },
+    "sequence_number": 7,
+    "timestamp": "2026-02-27T14:30:01Z",
+    "event_type": "attestation.end_of_session",
+    "actor": {
+      "type": "agent",
+      "org_id": "org-docuverify",
+      "agent_id": "ag-d1e2f3a4b5c6d7e8"
+    },
+    "subject": {
+      "type": "session",
+      "session_id": "ps-1a2b3c4d5e6f7890",
+      "contract_id": "ct-9e8f7d6c5b4a3928"
+    },
+    "action": {
+      "enclave_attestation": {
+        "enclave_type": "sev-snp",
+        "measurement": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+        "agent_hash": {
+          "algorithm": "sha-256",
+          "value": "abc123def456789abc123def456789abc123def456789abc123def456789abcd"
+        },
+        "timestamp": "2026-02-27T14:30:01Z",
+        "signed_by": "acme-ca",
+        "signature": "RW5kIG9mIHNlc3Npb24gYXR0ZXN0YXRpb24gcHJvb2Yu"
+      },
+      "reason": "End-of-session attestation: measurement matches start measurement. Enclave integrity verified."
+    },
+    "outcome": {
+      "status": "success"
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-6a7890123456789a",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "sequence_number": 8,
+    "timestamp": "2026-02-27T14:30:02Z",
+    "event_type": "session.completed",
+    "actor": {
+      "type": "agent",
+      "org_id": "org-docuverify",
+      "agent_id": "ag-d1e2f3a4b5c6d7e8"
+    },
+    "subject": {
+      "type": "session",
+      "session_id": "ps-1a2b3c4d5e6f7890",
+      "contract_id": "ct-9e8f7d6c5b4a3928"
+    },
+    "action": {
+      "operations": ["extract_text", "extract_tables", "extract_key_value"],
+      "contract_id": "ct-9e8f7d6c5b4a3928",
+      "result_id": "rs-5c4b3a2f1e0d9c8b"
+    },
+    "outcome": {
+      "status": "success",
+      "pii_exposure": "redacted_only",
+      "documents_touched": 2,
+      "data_egress_bytes": 3847,
+      "duration_ms": 4200
+    }
+  },
+  {
+    "$schema": "https://dssp.dev/schema/audit/v0.1",
+    "dssp_version": "0.1",
+    "event_id": "ev-7890123456789abc",
+    "previous_event_hash": {
+      "algorithm": "sha-256",
+      "value": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "event_hash": {
+      "algorithm": "sha-256",
+      "value": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "sequence_number": 9,
+    "timestamp": "2026-02-27T14:30:03Z",
+    "event_type": "result.delivered",
+    "actor": {
+      "type": "gateway"
+    },
+    "subject": {
+      "type": "result",
+      "result_id": "rs-5c4b3a2f1e0d9c8b",
+      "contract_id": "ct-9e8f7d6c5b4a3928"
+    },
+    "action": {
+      "result_id": "rs-5c4b3a2f1e0d9c8b",
+      "reason": "Result envelope delivered to consumer org-docuverify. PII report: compliant, 5 fields redacted, 0 violations. Result scan: PASSED (3 additional fields modified by scan)."
+    },
+    "outcome": {
+      "status": "success",
+      "pii_exposure": "none",
+      "data_egress_bytes": 3847
+    }
+  }
+]

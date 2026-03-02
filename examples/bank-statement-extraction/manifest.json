@@ -1,0 +1,141 @@
+{
+  "$schema": "https://dssp.dev/schema/manifest/v0.1",
+  "dssp_version": "0.1",
+  "manifest_id": "mf-8a3b2c1d4e5f6789",
+  "owner": {
+    "org_id": "org-acme-corp",
+    "jurisdiction": "EU/NL",
+    "data_residency": "eu-west-1"
+  },
+  "created_at": "2026-02-15T10:30:00Z",
+  "expires_at": "2026-04-15T23:59:59Z",
+  "scope": {
+    "engagement_id": "engagement-2026-q1-annual-audit",
+    "period": {
+      "from": "2025-01-01",
+      "to": "2025-12-31"
+    },
+    "tags": ["annual-audit-2025", "financial-statements", "bank-confirmations"]
+  },
+  "documents": [
+    {
+      "document_id": "doc-f47ac10b58cc4372",
+      "classification": "financial/bank-statement",
+      "sensitivity": "pii-high",
+      "format": "application/pdf",
+      "page_count": 3,
+      "language": "en",
+      "hash": {
+        "algorithm": "sha-256",
+        "value": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+      },
+      "size_bytes": 245760,
+      "created_at": "2026-01-20T09:15:00Z",
+      "pii_fields_declared": [
+        "account_number",
+        "account_holder_name",
+        "balance",
+        "iban"
+      ],
+      "allowed_operations": [
+        "extract_text",
+        "extract_tables",
+        "extract_key_value",
+        "classify_document",
+        "compute_checksum"
+      ],
+      "denied_operations": [
+        "copy",
+        "download",
+        "thumbnail",
+        "preview",
+        "ocr_full_page"
+      ],
+      "tags": ["chase-bank", "usd-account", "primary"]
+    },
+    {
+      "document_id": "doc-a58bd21c69dd5483",
+      "classification": "financial/bank-statement",
+      "sensitivity": "pii-high",
+      "format": "application/pdf",
+      "page_count": 5,
+      "language": "en",
+      "hash": {
+        "algorithm": "sha-256",
+        "value": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3"
+      },
+      "size_bytes": 389120,
+      "created_at": "2026-01-20T09:16:00Z",
+      "pii_fields_declared": [
+        "account_number",
+        "account_holder_name",
+        "balance",
+        "iban",
+        "swift_bic"
+      ],
+      "allowed_operations": [
+        "extract_text",
+        "extract_tables",
+        "extract_key_value",
+        "classify_document",
+        "compute_checksum"
+      ],
+      "denied_operations": [
+        "copy",
+        "download",
+        "thumbnail",
+        "preview",
+        "ocr_full_page"
+      ],
+      "tags": ["ing-bank", "eur-account", "primary"]
+    },
+    {
+      "document_id": "doc-a69ce32d7aee6594",
+      "classification": "financial/invoice",
+      "sensitivity": "pii-low",
+      "format": "application/pdf",
+      "page_count": 1,
+      "language": "nl",
+      "hash": {
+        "algorithm": "sha-256",
+        "value": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4"
+      },
+      "size_bytes": 102400,
+      "created_at": "2026-01-22T14:00:00Z",
+      "pii_fields_declared": [
+        "tax_id"
+      ],
+      "allowed_operations": [
+        "extract_text",
+        "extract_tables",
+        "extract_key_value",
+        "classify_document"
+      ],
+      "denied_operations": [
+        "copy",
+        "download"
+      ],
+      "tags": ["vendor-invoice", "q4-2025"]
+    }
+  ],
+  "summary": {
+    "total_documents": 3,
+    "total_size_bytes": 737280,
+    "classifications": {
+      "financial/bank-statement": 2,
+      "financial/invoice": 1
+    },
+    "sensitivity_levels": {
+      "pii-high": 2,
+      "pii-low": 1
+    },
+    "formats": {
+      "application/pdf": 3
+    },
+    "languages": {
+      "en": 2,
+      "nl": 1
+    }
+  }
+}
+

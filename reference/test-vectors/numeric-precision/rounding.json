@@ -1,0 +1,48 @@
+{
+  "description": "Numeric precision enforcement test vectors",
+  "spec_reference": "DSSP v0.1, §4.10",
+  "test_cases": [
+    {
+      "id": "np-001",
+      "description": "Currency rounded to 2 decimal places",
+      "policy": {"max_decimal_places": 2, "enforce_standard_rounding": true},
+      "input": 1247832.5031742,
+      "expected_output": 1247832.50
+    },
+    {
+      "id": "np-002",
+      "description": "Confidence score rounded to 2 decimal places",
+      "policy": {"max_decimal_places": 2, "enforce_standard_rounding": true},
+      "input": 0.9700000000000001,
+      "expected_output": 0.97
+    },
+    {
+      "id": "np-003",
+      "description": "Round-half-to-even (banker's rounding) — 0.5 rounds to even",
+      "policy": {"max_decimal_places": 0, "enforce_standard_rounding": true},
+      "input": 2.5,
+      "expected_output": 2
+    },
+    {
+      "id": "np-004",
+      "description": "Round-half-to-even (banker's rounding) — 3.5 rounds to even",
+      "policy": {"max_decimal_places": 0, "enforce_standard_rounding": true},
+      "input": 3.5,
+      "expected_output": 4
+    },
+    {
+      "id": "np-005",
+      "description": "Max significant digits enforcement",
+      "policy": {"max_significant_digits": 6},
+      "input": 1234567.89,
+      "expected_output": 1234570
+    },
+    {
+      "id": "np-006",
+      "description": "Duration rounded (timing channel prevention)",
+      "policy": {"max_decimal_places": 0},
+      "input": 1523.7842,
+      "expected_output": 1524
+    }
+  ]
+}

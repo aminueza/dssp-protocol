@@ -1,0 +1,534 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dssp.dev/schema/contract/v0.1",
+  "title": "DSP Processing Contract",
+  "description": "Layer 2: Defines what a processor (agent) is allowed to do with documents, what it must prove, and what restrictions apply. The document owner creates this contract. The processor MUST comply with all terms. Violations are logged to the audit ledger and MAY trigger automatic session termination.",
+
+  "type": "object",
+  "required": ["$schema", "dssp_version", "contract_id", "version", "owner", "consumer", "permissions", "restrictions", "attestation_requirements", "created_at"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "$schema": {
+      "type": "string",
+      "const": "https://dssp.dev/schema/contract/v0.1"
+    },
+
+    "dssp_version": {
+      "$ref": "common.schema.json#/$defs/ProtocolVersion"
+    },
+
+    "contract_id": {
+      "$ref": "common.schema.json#/$defs/Identifier",
+      "description": "Unique contract identifier. Prefix: 'ct-'."
+    },
+
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Contract version. Incremented when the owner updates permissions. Processors MUST re-fetch contracts when version changes."
+    },
+
+    "status": {
+      "type": "string",
+      "enum": ["active", "suspended", "revoked", "expired"],
+      "default": "active",
+      "description": "Current contract status. Only 'active' contracts allow new processing sessions."
+    },
+
+    "owner": {
+      "$ref": "common.schema.json#/$defs/OwnerInfo",
+      "description": "The document owner who created this contract."
+    },
+
+    "consumer": {
+      "type": "object",
+      "required": ["org_id"],
+      "additionalProperties": false,
+      "properties": {
+        "org_id": {
+          "$ref": "common.schema.json#/$defs/OrgIdentifier",
+          "description": "Organization that will consume/process documents."
+        },
+        "agent_id": {
+          "$ref": "common.schema.json#/$defs/Identifier",
+          "description": "Specific agent permitted. If omitted, any agent from the consumer org is allowed."
+        },
+        "agent_hash": {
+          "$ref": "common.schema.json#/$defs/HashDigest",
+          "description": "Required hash of the agent binary/container. Enclave attestation MUST match this hash."
+        },
+        "agent_versions_allowed": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Semantic version constraints (e.g., '>=2.0.0', '~3.1'). If set, agent_version in attestation MUST satisfy at least one."
+        },
+        "agent_type": {
+          "$ref": "common.schema.json#/$defs/AgentType",
+          "description": "REQUIRED. Declares the agent's processing model. 'llm_freeform' triggers mandatory NER-based result scanning and stricter privacy budget requirements."
+        },
+        "sub_agent_policy": {
+          "type": "object",
+          "description": "Controls multi-model composition. When the primary agent delegates to sub-models (OCR, classification, LLM), this policy governs what sub-agents are allowed and what must be attested.",
+          "properties": {
+            "allowed": {
+              "type": "boolean",
+              "default": true,
+              "description": "If false, the agent MUST NOT delegate to any sub-models. All processing must happen in a single binary."
+            },
+            "max_pipeline_steps": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum number of pipeline steps (sub-agents). Limits complexity of multi-model chains."
+            },
+            "allowed_purposes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["ocr", "layout_detection", "table_extraction", "classification", "key_value_extraction", "summarization", "translation", "validation", "custom"]
+              },
+              "description": "Sub-agent purposes the owner permits. Unlisted purposes are denied."
+            },
+            "require_sub_agent_hashes": {
+              "type": "boolean",
+              "default": true,
+              "description": "If true, every sub-agent in the chain MUST have its binary hash declared and verifiable. Prevents undeclared model substitution."
+            },
+            "approved_sub_agent_hashes": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/HashDigest" },
+              "description": "Hashes of approved sub-agent binaries/models. If set, only these sub-agents may be invoked."
+            },
+            "cross_enclave_allowed": {
+              "type": "boolean",
+              "default": false,
+              "description": "If false, all sub-agents MUST run in the same enclave as the primary agent. If true, sub-agents MAY run in separate enclaves (each with independent attestation)."
+            },
+            "llm_sub_agent_allowed": {
+              "type": "boolean",
+              "default": false,
+              "description": "If false, no sub-agent in the chain may be of type 'llm_freeform'. Even if the primary agent is 'ml_structured', a hidden LLM sub-agent could leak PII. RECOMMENDED: false unless the full pipeline has NER scanning."
+            }
+          }
+        }
+      }
+    },
+
+    "permissions": {
+      "type": "object",
+      "required": ["operations"],
+      "additionalProperties": false,
+      "properties": {
+
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/Operation" },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Operations the consumer is permitted to perform."
+        },
+
+        "document_filter": {
+          "type": "object",
+          "description": "Limits which documents from the manifest the consumer can access.",
+          "properties": {
+            "classifications": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/DocumentClassification" },
+              "description": "Only documents matching these classifications."
+            },
+            "sensitivity_max": {
+              "$ref": "common.schema.json#/$defs/SensitivityLevel",
+              "description": "Maximum sensitivity level the consumer can access."
+            },
+            "tags_required": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Only documents that have ALL of these tags."
+            },
+            "tags_any": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Only documents that have AT LEAST ONE of these tags."
+            },
+            "document_ids": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/Identifier" },
+              "description": "Explicit list of permitted document IDs. If set, overrides classification/tag filters."
+            }
+          }
+        },
+
+        "max_documents_per_session": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum documents processable in a single session."
+        },
+
+        "max_concurrent_sessions": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Maximum simultaneous active sessions under this contract."
+        },
+
+        "max_session_duration_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "description": "Maximum wall-clock time for a processing session. Enclave MUST terminate after this."
+        },
+
+        "valid_from": {
+          "$ref": "common.schema.json#/$defs/Timestamp",
+          "description": "Contract becomes active at this time."
+        },
+
+        "valid_until": {
+          "$ref": "common.schema.json#/$defs/Timestamp",
+          "description": "Contract expires at this time. Sessions started before expiry MAY complete."
+        }
+      }
+    },
+
+    "restrictions": {
+      "type": "object",
+      "required": ["network_policy", "storage_policy", "result_policy", "result_scanning"],
+      "additionalProperties": false,
+      "properties": {
+
+        "network_policy": {
+          "type": "object",
+          "required": ["egress"],
+          "properties": {
+            "egress": {
+              "type": "string",
+              "enum": ["deny_all", "allow_listed"],
+              "description": "'deny_all': no network egress from enclave (results written to local storage). 'allow_listed': only destinations in allowed_destinations."
+            },
+            "allowed_destinations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["host", "port", "purpose"],
+                "properties": {
+                  "host": { "type": "string" },
+                  "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                  "purpose": {
+                    "type": "string",
+                    "enum": ["document_storage", "dssp_gateway", "result_delivery", "attestation_service", "logging"],
+                    "description": "Why this destination is needed."
+                  }
+                }
+              },
+              "description": "Exhaustive list of permitted network destinations. Anything not listed is blocked."
+            }
+          }
+        },
+
+        "storage_policy": {
+          "type": "string",
+          "enum": ["memory_only", "encrypted_ephemeral", "encrypted_persistent"],
+          "description": "'memory_only': agent processes entirely in RAM, no disk. 'encrypted_ephemeral': may use encrypted temp storage, wiped after session. 'encrypted_persistent': allowed for multi-session workflows."
+        },
+
+        "result_policy": {
+          "type": "object",
+          "required": ["pii_redaction_rules"],
+          "properties": {
+            "raw_content_allowed": {
+              "type": "boolean",
+              "default": false,
+              "description": "If false (default), results MUST NOT contain any raw document text, images, or content. Only structured extractions."
+            },
+            "max_result_size_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum size of the result envelope. Prevents data exfiltration via oversized results."
+            },
+            "pii_redaction_rules": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "common.schema.json#/$defs/RedactionMethod"
+              },
+              "description": "Map of PIIFieldType → RedactionMethod. Defines how each PII type MUST be transformed before leaving the enclave. Fields not listed here MUST use 'suppress' (remove entirely).",
+              "examples": [
+                {
+                  "account_number": "mask_last_4",
+                  "account_holder_name": "hash_sha256",
+                  "balance": "allow",
+                  "tax_id": "suppress",
+                  "email_address": "suppress"
+                }
+              ]
+            },
+            "custom_redaction_patterns": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["pattern", "method", "description"],
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "description": "Regex pattern to match in extracted text."
+                  },
+                  "method": {
+                    "$ref": "common.schema.json#/$defs/RedactionMethod"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Additional regex-based redaction rules for PII patterns not covered by standard fields."
+            },
+            "free_text_fields_policy": {
+              "type": "string",
+              "enum": ["deny", "scan_and_redact", "allow_with_warning"],
+              "default": "deny",
+              "description": "'deny' (default): result fields MUST NOT contain free-text (strings > 200 chars). 'scan_and_redact': free-text is allowed but MUST pass NER scanning before exit. 'allow_with_warning': free-text passes through with a warning in the PII report (NOT RECOMMENDED for pii-high or above)."
+            },
+            "max_string_field_length": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 200,
+              "description": "Maximum character length for any single string field in the result. Prevents data exfiltration via oversized description fields. Default 200. Set higher only with scan_and_redact."
+            },
+            "numeric_precision_policy": {
+              "$ref": "common.schema.json#/$defs/NumericPrecisionPolicy",
+              "description": "Controls numeric field precision to prevent steganographic data exfiltration via trailing digits. RECOMMENDED for pii-high+. An adversarial agent could encode ~3.3 bits per decimal digit in 'innocuous' numeric fields like amounts, balances, and confidence scores."
+            }
+          }
+        },
+
+        "result_scanning": {
+          "type": "object",
+          "required": ["enabled"],
+          "description": "REQUIRED. Result scanning is a separate process (not the agent) that inspects results for PII leakage before they leave the enclave boundary. This addresses the gap where agents (especially LLMs) may embed PII in seemingly innocuous fields.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "MUST be true when consumer.agent_type is 'llm_freeform'. RECOMMENDED for all agent types."
+            },
+            "required_scanners": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["regex", "ner", "llm_output_filter", "statistical"]
+              },
+              "minItems": 1,
+              "description": "Scanner types that MUST run. For 'llm_freeform' agents, MUST include at least 'ner'. For 'deterministic' agents, 'regex' is sufficient."
+            },
+            "ner_model_requirements": {
+              "type": "object",
+              "description": "Requirements for NER-based scanners.",
+              "properties": {
+                "min_entity_types": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "NER entity types the scanner MUST detect (e.g., ['PERSON', 'ORG', 'GPE', 'PHONE', 'EMAIL', 'IBAN', 'CREDIT_CARD'])."
+                },
+                "min_confidence_threshold": {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 1.0,
+                  "default": 0.7,
+                  "description": "Minimum confidence for a NER detection to trigger redaction."
+                },
+                "approved_scanner_hashes": {
+                  "type": "array",
+                  "items": { "$ref": "common.schema.json#/$defs/HashDigest" },
+                  "description": "Hashes of approved scanner binaries. The scanner MUST be attested separately from the agent."
+                },
+                "languages": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Languages the NER scanner must support (ISO 639-1)."
+                }
+              }
+            },
+            "scan_failure_action": {
+              "type": "string",
+              "enum": ["block_result", "flag_and_deliver", "quarantine"],
+              "default": "block_result",
+              "description": "'block_result': if scanning fails or detects PII, the result is NOT delivered. 'flag_and_deliver': result is delivered with a violation flag. 'quarantine': result is held for owner manual review."
+            }
+          }
+        },
+
+        "document_sanitization": {
+          "type": "object",
+          "description": "Pre-processing layer that sanitizes documents before the agent sees them. Primary defense against prompt injection attacks where malicious content in documents manipulates LLM agents.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "RECOMMENDED when agent_type is 'llm_freeform'. Sanitizes document content before the agent processes it."
+            },
+            "strip_hidden_text": {
+              "type": "boolean",
+              "default": true,
+              "description": "Remove hidden text layers, white-on-white text, zero-width characters."
+            },
+            "strip_javascript": {
+              "type": "boolean",
+              "default": true,
+              "description": "Remove JavaScript from PDFs."
+            },
+            "strip_embedded_files": {
+              "type": "boolean",
+              "default": true,
+              "description": "Remove embedded files/attachments from documents."
+            },
+            "normalize_unicode": {
+              "type": "boolean",
+              "default": true,
+              "description": "Normalize Unicode to NFC form. Prevents homoglyph attacks."
+            },
+            "injection_pattern_detection": {
+              "type": "boolean",
+              "default": true,
+              "description": "Scan for known prompt injection patterns ('ignore previous instructions', 'system prompt override', etc.) and flag or remove them."
+            },
+            "max_text_length_per_page": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum text characters per page. Pages exceeding this are truncated (prevents token-stuffing attacks on LLMs)."
+            },
+            "sanitizer_hash": {
+              "$ref": "common.schema.json#/$defs/HashDigest",
+              "description": "Hash of the approved sanitizer binary. MUST be attested."
+            }
+          }
+        },
+
+        "privacy_budget": {
+          "$ref": "common.schema.json#/$defs/PrivacyBudget",
+          "description": "Differential privacy and re-identification risk controls. REQUIRED when agent_type is 'llm_freeform'. RECOMMENDED for all agent types processing pii-high or pii-critical documents."
+        },
+
+        "gateway_visibility": {
+          "$ref": "common.schema.json#/$defs/GatewayVisibility",
+          "description": "Controls what the DSSP Gateway can see for this contract. Defaults to metadata_only for results and summary_only for audit events."
+        }
+      }
+    },
+
+    "attestation_requirements": {
+      "type": "object",
+      "required": ["enclave_types", "must_include"],
+      "additionalProperties": false,
+      "properties": {
+
+        "enclave_types": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/EnclaveTypeWithSandbox" },
+          "minItems": 1,
+          "description": "Accepted enclave types. Agent MUST run in one of these. 'sandbox' is permitted for development but MUST NOT be used in production."
+        },
+
+        "measurement_authorities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Trusted authorities that must have signed the enclave measurement."
+        },
+
+        "must_include": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "agent_binary_hash",
+              "input_document_hashes",
+              "output_result_hash",
+              "processing_duration",
+              "network_connections_log",
+              "memory_usage_peak",
+              "memory_sealed_proof",
+              "cpu_instruction_count",
+              "entropy_source_proof",
+              "result_scan_verdict",
+              "sanitizer_execution_proof",
+              "end_of_session_measurement",
+              "sub_agent_chain_declaration"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Claims that MUST be present in the attestation report. 'result_scan_verdict' proves scanning ran. 'sanitizer_execution_proof' proves document sanitization ran. 'end_of_session_measurement' proves the enclave was not tampered with during processing. 'sub_agent_chain_declaration' proves every sub-model in a multi-model pipeline was declared with its hash."
+        },
+
+        "attestation_freshness_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 300,
+          "description": "Maximum age of an attestation token before it must be refreshed."
+        },
+
+        "runtime_verification": {
+          "type": "object",
+          "description": "Controls for verifying agent behavior DURING processing, not just at start. Addresses the gap where attestation only proves the agent started correctly.",
+          "properties": {
+            "end_of_session_attestation": {
+              "type": "boolean",
+              "default": true,
+              "description": "REQUIRED. Agent MUST produce a fresh attestation at session end (not just start). Proves the enclave was not compromised during processing."
+            },
+            "periodic_heartbeat_seconds": {
+              "type": "integer",
+              "minimum": 10,
+              "description": "Agent must send attested heartbeats at this interval. Missing heartbeats trigger session termination."
+            },
+            "sidecar_verifier": {
+              "type": "object",
+              "description": "Independent co-processor running alongside the agent that monitors and attests to network activity, memory access patterns, and syscalls.",
+              "properties": {
+                "required": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "If true, a sidecar verifier MUST run in a separate enclave. It independently logs all network I/O and compares against the agent's self-reported claims."
+                },
+                "verifier_hash": {
+                  "$ref": "common.schema.json#/$defs/HashDigest",
+                  "description": "Hash of the approved sidecar verifier binary."
+                },
+                "monitors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["network_io", "file_io", "memory_allocation", "syscalls", "dns_queries"]
+                  },
+                  "description": "What the sidecar monitors."
+                }
+              }
+            },
+            "memory_snapshot_on_exit": {
+              "type": "boolean",
+              "default": false,
+              "description": "Take an encrypted memory snapshot at session end for forensic analysis by the owner. MUST be stored on owner infrastructure only."
+            }
+          }
+        }
+      }
+    },
+
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+
+    "updated_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+
+    "revoked_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp",
+      "description": "If set, this contract has been revoked. No new sessions allowed."
+    },
+
+    "revocation_reason": {
+      "type": "string",
+      "description": "Human-readable reason for revocation."
+    }
+  }
+}
+

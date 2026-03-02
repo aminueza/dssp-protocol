@@ -1,0 +1,88 @@
+{
+  "description": "Sub-agent chain validation test vectors",
+  "spec_reference": "DSSP v0.1, §4.9",
+  "test_cases": [
+    {
+      "id": "sac-001",
+      "description": "Valid 4-step deterministic + ml_structured pipeline",
+      "policy": {
+        "allowed": true,
+        "max_steps": 4,
+        "allowed_purposes": ["ocr", "layout_detection", "table_extraction", "validation"],
+        "llm_sub_agent_allowed": false,
+        "require_sub_agent_hashes": true
+      },
+      "chain": [
+        {"step_index": 0, "agent_type": "deterministic", "purpose": "ocr", "agent_hash": {"algorithm": "sha-256", "value": "aaa111"}},
+        {"step_index": 1, "agent_type": "ml_structured", "purpose": "layout_detection", "agent_hash": {"algorithm": "sha-256", "value": "bbb222"}},
+        {"step_index": 2, "agent_type": "ml_structured", "purpose": "table_extraction", "agent_hash": {"algorithm": "sha-256", "value": "ccc333"}},
+        {"step_index": 3, "agent_type": "deterministic", "purpose": "validation", "agent_hash": {"algorithm": "sha-256", "value": "ddd444"}}
+      ],
+      "expected_valid": true
+    },
+    {
+      "id": "sac-002",
+      "description": "Invalid — exceeds max_steps",
+      "policy": {
+        "allowed": true,
+        "max_steps": 3,
+        "allowed_purposes": ["ocr", "layout_detection", "table_extraction", "validation"],
+        "llm_sub_agent_allowed": false
+      },
+      "chain": [
+        {"step_index": 0, "agent_type": "deterministic", "purpose": "ocr"},
+        {"step_index": 1, "agent_type": "ml_structured", "purpose": "layout_detection"},
+        {"step_index": 2, "agent_type": "ml_structured", "purpose": "table_extraction"},
+        {"step_index": 3, "agent_type": "deterministic", "purpose": "validation"}
+      ],
+      "expected_valid": false,
+      "expected_violation": "chain_length_exceeds_max_steps"
+    },
+    {
+      "id": "sac-003",
+      "description": "Invalid — undeclared LLM sub-agent in deterministic pipeline",
+      "policy": {
+        "allowed": true,
+        "max_steps": 4,
+        "llm_sub_agent_allowed": false
+      },
+      "chain": [
+        {"step_index": 0, "agent_type": "deterministic", "purpose": "ocr"},
+        {"step_index": 1, "agent_type": "llm_freeform", "purpose": "summarization"}
+      ],
+      "expected_valid": false,
+      "expected_violation": "llm_sub_agent_not_allowed"
+    },
+    {
+      "id": "sac-004",
+      "description": "Invalid — purpose not in allowed list",
+      "policy": {
+        "allowed": true,
+        "max_steps": 4,
+        "allowed_purposes": ["ocr", "table_extraction"],
+        "llm_sub_agent_allowed": false
+      },
+      "chain": [
+        {"step_index": 0, "agent_type": "deterministic", "purpose": "ocr"},
+        {"step_index": 1, "agent_type": "ml_structured", "purpose": "summarization"}
+      ],
+      "expected_valid": false,
+      "expected_violation": "purpose_not_allowed"
+    },
+    {
+      "id": "sac-005",
+      "description": "Invalid — missing required hash",
+      "policy": {
+        "allowed": true,
+        "max_steps": 2,
+        "require_sub_agent_hashes": true
+      },
+      "chain": [
+        {"step_index": 0, "agent_type": "deterministic", "purpose": "ocr", "agent_hash": {"algorithm": "sha-256", "value": "aaa111"}},
+        {"step_index": 1, "agent_type": "ml_structured", "purpose": "table_extraction"}
+      ],
+      "expected_valid": false,
+      "expected_violation": "missing_agent_hash"
+    }
+  ]
+}

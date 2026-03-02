@@ -1,0 +1,27 @@
+# Docker Compose overlay for REAL Intel SGX hardware
+#
+# Usage:
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.gramine.yml \
+#                  -f docker-compose.sgx.yml up --build
+#
+# Requirements:
+#   - Intel SGX-capable CPU (Ice Lake+, Xeon Scalable 3rd gen+)
+#   - Linux kernel with SGX driver (/dev/sgx_enclave, /dev/sgx_provision)
+#   - Intel DCAP libraries and AESM service running on host
+#   - PCCS (Provisioning Certificate Caching Service) accessible
+#
+# This overlay adds SGX device passthrough to the Gramine agent.
+
+services:
+  agent:
+    command: ["gramine-sgx", "python3", "/app/main.py"]
+    devices:
+      - /dev/sgx_enclave:/dev/sgx_enclave
+      - /dev/sgx_provision:/dev/sgx_provision
+    volumes:
+      # Mount AESM socket from host for quote generation
+      - /var/run/aesmd:/var/run/aesmd
+    environment:
+      ENCLAVE_MODE: gramine
+

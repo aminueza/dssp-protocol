@@ -1,0 +1,21 @@
+{
+  "description": "PII redaction test vectors — suppress method",
+  "spec_reference": "DSSP v0.1, §4.2",
+  "redaction_method": "suppress",
+  "test_cases": [
+    {
+      "id": "sp-001",
+      "description": "Suppressed field is absent from output",
+      "input_object": {"account_holder": "John Smith", "balance": 1247832.50, "tax_id": "123-45-6789"},
+      "suppress_fields": ["tax_id"],
+      "expected_output": {"account_holder": "John Smith", "balance": 1247832.50}
+    },
+    {
+      "id": "sp-002",
+      "description": "Multiple fields suppressed",
+      "input_object": {"name": "Jane Doe", "ssn": "987-65-4321", "amount": 500.00, "email": "jane@example.com"},
+      "suppress_fields": ["ssn", "email"],
+      "expected_output": {"name": "Jane Doe", "amount": 500.00}
+    }
+  ]
+}

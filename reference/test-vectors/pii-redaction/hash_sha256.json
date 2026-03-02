@@ -1,0 +1,25 @@
+{
+  "description": "PII redaction test vectors — hash_sha256 method",
+  "spec_reference": "DSSP v0.1, §4.2",
+  "redaction_method": "hash_sha256",
+  "test_cases": [
+    {
+      "id": "hs-001",
+      "description": "Name hashing",
+      "input": "John Smith",
+      "expected_output": "sha256:ef61a579c907bbed674c0dbcbcf7f7af8f851538eef7b8e58c5bee0b8cfdac4a"
+    },
+    {
+      "id": "hs-002",
+      "description": "Email hashing",
+      "input": "john.smith@example.com",
+      "expected_output": "sha256:8e621e3d0368631d263d07a351fa8d34fba0d17c15fbcdec11a5f58008d022a0"
+    },
+    {
+      "id": "hs-003",
+      "description": "Empty string hashing",
+      "input": "",
+      "expected_output": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

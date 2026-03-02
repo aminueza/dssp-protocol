@@ -1,0 +1,38 @@
+=====================================
+ING BANK N.V. - REKENINGOVERZICHT
+=====================================
+
+Statement Period: December 1, 2025 - December 31, 2025
+
+ACCOUNT INFORMATION
+Account Holder: Eva de Vries
+Account Number: NL91INGB0001234567
+IBAN: NL91INGB0001234567
+BIC: INGBNL2A
+Account Type: Betaalrekening
+Currency: EUR
+
+ACCOUNT SUMMARY
+Opening Balance: 84321.50
+Total Credits: 23750.00
+Total Debits: 12480.75
+Closing Balance: 95590.75
+
+TRANSACTIONS
+Date|Description|Amount|Balance
+2025-12-01|Salary - Koninklijke Philips N.V.|8500.00|92821.50
+2025-12-03|iDEAL Payment - Albert Heijn|-125.40|92696.10
+2025-12-05|SEPA Transfer from Pieter van den Berg|3200.00|95896.10
+2025-12-07|Mortgage Payment - ABN AMRO|-2100.00|93796.10
+2025-12-10|Health Insurance - Zilveren Kruis|-185.50|93610.60
+2025-12-12|SEPA Transfer from Sophie Jansen|4500.00|98110.60
+2025-12-15|iDEAL Payment - Bol.com|-89.95|98020.65
+2025-12-18|Utility Payment - Vattenfall|-210.00|97810.65
+2025-12-20|SEPA Transfer to Jan de Boer|-3500.00|94310.65
+2025-12-22|Salary Bonus - Koninklijke Philips N.V.|7550.00|101860.65
+2025-12-25|iDEAL Payment - Coolblue|-320.40|101540.25
+2025-12-28|Municipal Tax - Gemeente Amsterdam|-1450.00|100090.25
+2025-12-30|Savings Transfer to Spaarrekening|-4499.50|95590.75
+
+Total Transactions: 13
+

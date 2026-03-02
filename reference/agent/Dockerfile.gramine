@@ -1,0 +1,56 @@
+# DSP Agent with Gramine enclave support
+#
+# This Dockerfile builds the agent on top of Gramine's official image.
+#
+# Modes:
+#   gramine-direct : CPU-only simulation (no SGX hardware needed)
+#                    Attestation reports are structurally valid but self-signed
+#
+#   gramine-sgx    : Real Intel SGX enclave with hardware attestation
+#                    Requires: SGX-capable CPU, DCAP driver, AESM service
+#                    Run with: docker run --device /dev/sgx_enclave --device /dev/sgx_provision
+#
+# Build:
+#   docker build -f Dockerfile.gramine -t dssp-agent-gramine .
+
+FROM gramineproject/gramine:v1.8-jammy AS base
+
+# ── Install Python deps ─────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY main.py attestation.py ./
+COPY gramine/ /app/gramine/
+
+# ── Build Gramine manifest ──────────────────────────────────
+RUN gramine-manifest \
+        -Dlog_level=error \
+        -Darch_libdir=/lib/x86_64-linux-gnu \
+        /app/gramine/python.manifest.template \
+        /app/python.manifest
+
+# ── For SGX mode: sign the enclave ──────────────────────────
+# Uncomment the following for SGX deployment:
+# COPY enclave-key.pem /app/
+# RUN gramine-sgx-sign \
+#         --manifest /app/python.manifest \
+#         --output /app/python.manifest.sgx \
+#         --key /app/enclave-key.pem
+# RUN gramine-sgx-get-token \
+#         --output /app/python.token \
+#         --sig /app/python.sig
+
+ENV ENCLAVE_MODE=gramine
+
+# ── Entrypoint ──────────────────────────────────────────────
+# Default: gramine-direct (simulation)
+# Override CMD to "gramine-sgx" for real hardware
+CMD ["gramine-direct", "python3", "/app/main.py"]
+

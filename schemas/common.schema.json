@@ -1,0 +1,517 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dssp.dev/schema/common/v0.1",
+  "title": "DSP Common Definitions",
+  "description": "Shared types, enums, and definitions used across all Document Sovereignty Protocol layers.",
+
+  "$defs": {
+
+    "ProtocolVersion": {
+      "type": "string",
+      "const": "0.1",
+      "description": "DSP protocol version. All messages in a session MUST use the same version."
+    },
+
+    "Identifier": {
+      "type": "string",
+      "pattern": "^[a-z]{2,4}-[a-f0-9]{8,64}$",
+      "description": "DSP identifier format: <type-prefix>-<hex>. Prefixes: mf (manifest), doc (document), ct (contract), rs (result), ev (event), ps (session), ag (agent)."
+    },
+
+    "HashDigest": {
+      "type": "object",
+      "required": ["algorithm", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["sha-256", "sha-384", "sha-512", "blake3"],
+          "description": "Cryptographic hash algorithm. SHA-256 is the REQUIRED baseline. Implementations MAY support additional algorithms."
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64,128}$",
+          "description": "Hex-encoded hash value."
+        }
+      }
+    },
+
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp in UTC. MUST include timezone designator 'Z'."
+    },
+
+    "OrgIdentifier": {
+      "type": "string",
+      "pattern": "^org-[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+      "description": "Organization identifier. Lowercase alphanumeric with hyphens, prefixed with 'org-'."
+    },
+
+    "Jurisdiction": {
+      "type": "string",
+      "description": "ISO 3166-1 alpha-2 country code, optionally followed by subdivision (e.g., 'US', 'EU/NL', 'BR/SP'). Controls data residency rules.",
+      "examples": ["US", "EU", "EU/NL", "BR", "BR/SP", "JP", "SG"]
+    },
+
+    "DataResidencyZone": {
+      "type": "string",
+      "description": "Opaque identifier for where documents physically reside. Customer-defined. Examples: 'eu-west-1', 'on-prem-dc2', 'azure-westeurope'."
+    },
+
+    "SensitivityLevel": {
+      "type": "string",
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "pii-low",
+        "pii-high",
+        "pii-critical"
+      ],
+      "description": "Document sensitivity classification. Determines minimum enclave requirements and result redaction rules."
+    },
+
+    "DocumentClassification": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$",
+      "description": "Hierarchical document type: <category>/<type>. Examples: 'financial/bank-statement', 'legal/contract', 'healthcare/claim'.",
+      "examples": [
+        "financial/bank-statement",
+        "financial/invoice",
+        "financial/tax-return",
+        "legal/contract",
+        "legal/nda",
+        "healthcare/claim",
+        "healthcare/lab-result",
+        "identity/passport",
+        "identity/drivers-license",
+        "audit/confirmation-letter",
+        "audit/working-paper"
+      ]
+    },
+
+    "PIIFieldType": {
+      "type": "string",
+      "enum": [
+        "full_name",
+        "date_of_birth",
+        "national_id",
+        "tax_id",
+        "passport_number",
+        "drivers_license",
+        "account_number",
+        "account_holder_name",
+        "routing_number",
+        "iban",
+        "swift_bic",
+        "credit_card_number",
+        "phone_number",
+        "email_address",
+        "physical_address",
+        "ip_address",
+        "biometric_data",
+        "health_record_id",
+        "insurance_id",
+        "salary",
+        "balance",
+        "signature_image",
+        "photograph",
+        "counterparty_name",
+        "transaction_description",
+        "invoice_number",
+        "employer_name",
+        "beneficiary_name",
+        "free_text_pii",
+        "custom"
+      ],
+      "description": "Standardized PII field identifiers. Processors use these to apply redaction rules from the contract. 'transaction_description' and 'counterparty_name' were added because bank statement descriptions frequently contain PII (names, addresses, invoice numbers). 'free_text_pii' covers any unstructured text that may contain embedded PII."
+    },
+
+    "RedactionMethod": {
+      "type": "string",
+      "enum": [
+        "allow",
+        "mask_last_4",
+        "mask_first_6",
+        "mask_all",
+        "hash_sha256",
+        "hash_blake3",
+        "round_thousands",
+        "round_millions",
+        "range_bucket",
+        "suppress",
+        "tokenize",
+        "k_anonymize"
+      ],
+      "description": "How a PII field is transformed before it leaves the enclave."
+    },
+
+    "Operation": {
+      "type": "string",
+      "enum": [
+        "extract_text",
+        "extract_tables",
+        "extract_key_value",
+        "classify_document",
+        "detect_language",
+        "verify_signature",
+        "compare_documents",
+        "compute_checksum",
+        "count_pages",
+        "extract_metadata",
+        "ocr_structured",
+        "ocr_full_page",
+        "copy",
+        "download",
+        "thumbnail",
+        "preview"
+      ],
+      "description": "Operations that a processor can request. 'copy', 'download', 'thumbnail', and 'preview' are considered high-risk and SHOULD be denied by default."
+    },
+
+    "EnclaveType": {
+      "type": "string",
+      "enum": ["sgx", "sev-snp", "tdx", "nitro", "cca"],
+      "description": "Trusted Execution Environment type. Enclaves are REQUIRED for all non-public documents. The 'none' option was removed in v0.1.1 — use the 'sandbox' conformance level for development/testing only."
+    },
+
+    "EnclaveTypeWithSandbox": {
+      "type": "string",
+      "enum": ["sgx", "sev-snp", "tdx", "nitro", "cca", "sandbox"],
+      "description": "Extended enclave type that includes 'sandbox' for development/testing. 'sandbox' MUST NOT be used in production. Contracts using 'sandbox' MUST set sensitivity_max to 'public' or 'internal'. Conformance tests MUST reject 'sandbox' for pii-low or higher."
+    },
+
+    "AgentType": {
+      "type": "string",
+      "enum": ["deterministic", "ml_structured", "llm_freeform"],
+      "description": "Agent processing model. 'deterministic': rule-based extraction (regex, template matching). 'ml_structured': ML model that produces typed fields/tables only. 'llm_freeform': LLM that may produce free-text output. Each type triggers different PII scanning requirements."
+    },
+
+    "AttestationToken": {
+      "type": "object",
+      "required": ["enclave_type", "measurement", "timestamp", "signature"],
+      "additionalProperties": false,
+      "properties": {
+        "enclave_type": { "$ref": "#/$defs/EnclaveType" },
+        "measurement": {
+          "type": "string",
+          "description": "Platform-specific enclave measurement (MRENCLAVE for SGX, launch digest for SEV-SNP, etc.)."
+        },
+        "agent_hash": { "$ref": "#/$defs/HashDigest" },
+        "timestamp": { "$ref": "#/$defs/Timestamp" },
+        "signed_by": {
+          "type": "string",
+          "description": "Identifier of the signing authority (owner CA, DSP root CA, or platform CA)."
+        },
+        "signature": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Base64-encoded signature over the attestation claims."
+        },
+        "platform_certificate_chain": {
+          "type": "array",
+          "items": { "type": "string", "contentEncoding": "base64" },
+          "description": "Optional: certificate chain for verifying the attestation up to a trusted root."
+        }
+      }
+    },
+
+    "ScopedToken": {
+      "type": "object",
+      "required": ["token", "expires_at", "scope"],
+      "additionalProperties": false,
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Opaque access token. MUST NOT contain document content or PII."
+        },
+        "expires_at": { "$ref": "#/$defs/Timestamp" },
+        "scope": {
+          "type": "object",
+          "required": ["document_ids", "operations"],
+          "properties": {
+            "document_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Identifier" },
+              "description": "Documents this token grants access to."
+            },
+            "operations": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Operation" },
+              "description": "Operations permitted with this token."
+            }
+          }
+        }
+      }
+    },
+
+    "OwnerInfo": {
+      "type": "object",
+      "required": ["org_id"],
+      "additionalProperties": false,
+      "properties": {
+        "org_id": { "$ref": "#/$defs/OrgIdentifier" },
+        "jurisdiction": { "$ref": "#/$defs/Jurisdiction" },
+        "data_residency": { "$ref": "#/$defs/DataResidencyZone" }
+      }
+    },
+
+    "AgentInfo": {
+      "type": "object",
+      "required": ["org_id", "agent_id", "agent_type"],
+      "additionalProperties": false,
+      "properties": {
+        "org_id": { "$ref": "#/$defs/OrgIdentifier" },
+        "agent_id": { "$ref": "#/$defs/Identifier" },
+        "agent_hash": { "$ref": "#/$defs/HashDigest" },
+        "agent_version": {
+          "type": "string",
+          "description": "Semantic version of the agent."
+        },
+        "agent_type": {
+          "$ref": "#/$defs/AgentType",
+          "description": "Processing model of the agent. Determines which result scanning requirements apply."
+        }
+      }
+    },
+
+    "ResultScanVerdict": {
+      "type": "object",
+      "required": ["scanner_type", "scanner_version", "passed", "timestamp"],
+      "additionalProperties": false,
+      "description": "Verdict from a result scanner — a separate process (not the agent) that inspects results before they leave the enclave boundary.",
+      "properties": {
+        "scanner_type": {
+          "type": "string",
+          "enum": ["regex", "ner", "llm_output_filter", "statistical", "custom"],
+          "description": "'regex': pattern-based PII detection. 'ner': Named Entity Recognition (spaCy, Presidio, etc.). 'llm_output_filter': specialized model that detects PII in free-text. 'statistical': checks for re-identification risk. 'custom': implementation-specific."
+        },
+        "scanner_id": {
+          "type": "string",
+          "description": "Identifier of the scanner (e.g., 'presidio-v2.1', 'dssp-ner-scanner-1.0')."
+        },
+        "scanner_version": {
+          "type": "string",
+          "description": "Semantic version of the scanner."
+        },
+        "scanner_hash": {
+          "$ref": "#/$defs/HashDigest",
+          "description": "Hash of the scanner binary. Enables attestation of the scanner itself."
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "true if no PII leakage was detected. false if the scanner found issues."
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field_path", "entity_type", "action_taken"],
+            "properties": {
+              "field_path": {
+                "type": "string",
+                "description": "JSONPath-like location of the finding (e.g., 'extractions[0].tables[0].rows[3][1]')."
+              },
+              "entity_type": {
+                "type": "string",
+                "description": "NER entity type detected (e.g., 'PERSON', 'ORG', 'GPE', 'PHONE', 'EMAIL')."
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "description": "Detection confidence."
+              },
+              "action_taken": {
+                "type": "string",
+                "enum": ["redacted", "suppressed", "flagged", "allowed_by_contract"],
+                "description": "What the scanner did with this finding."
+              },
+              "original_value_hash": {
+                "$ref": "#/$defs/HashDigest",
+                "description": "Hash of the original value before redaction. Allows the owner to audit what was caught."
+              }
+            }
+          },
+          "description": "Individual PII detections. Each finding shows where PII was found and what was done about it."
+        },
+        "statistics": {
+          "type": "object",
+          "properties": {
+            "fields_scanned": { "type": "integer", "minimum": 0 },
+            "entities_detected": { "type": "integer", "minimum": 0 },
+            "entities_redacted": { "type": "integer", "minimum": 0 },
+            "entities_allowed": { "type": "integer", "minimum": 0 },
+            "false_positive_override_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "timestamp": { "$ref": "#/$defs/Timestamp" }
+      }
+    },
+
+    "PrivacyBudget": {
+      "type": "object",
+      "description": "Differential privacy and re-identification risk controls. Limits how much information can be extracted across sessions to prevent statistical re-identification.",
+      "properties": {
+        "epsilon": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Differential privacy epsilon budget. Lower = more private. Typical range: 0.1 (strong) to 10.0 (weak). REQUIRED when agent_type is 'llm_freeform'."
+        },
+        "delta": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Differential privacy delta. Probability of privacy breach. Typically 1/n² where n = dataset size."
+        },
+        "k_anonymity_min": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "Minimum k for k-anonymity. Result fields must be indistinguishable from at least k-1 other records. RECOMMENDED for financial data."
+        },
+        "max_unique_values_per_field": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of distinct values allowed in any single output field. Prevents exact balance figures from being unique identifiers."
+        },
+        "aggregation_minimum_records": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum number of source records that must be aggregated before a result field is emitted. For example, 5 means no field can be derived from fewer than 5 documents."
+        },
+        "budget_window": {
+          "type": "string",
+          "enum": ["per_session", "per_day", "per_contract", "lifetime"],
+          "description": "Time window over which the privacy budget is tracked."
+        },
+        "budget_consumed": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Current consumed budget (tracked by the gateway). Read-only in the contract; updated by the system."
+        }
+      }
+    },
+
+    "SubAgentAttestation": {
+      "type": "object",
+      "required": ["step_index", "agent_type", "agent_hash", "purpose"],
+      "additionalProperties": false,
+      "description": "Attestation record for a sub-agent in a multi-model composition pipeline. When a primary agent delegates to sub-models (e.g., OCR → classification → LLM summary), each step MUST be declared so the owner can verify the full processing chain.",
+      "properties": {
+        "step_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based index of this step in the processing pipeline."
+        },
+        "agent_type": {
+          "$ref": "#/$defs/AgentType",
+          "description": "Processing model of this sub-agent."
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "Identifier of the sub-agent (e.g., 'tesseract-ocr-5.3', 'layoutlm-v3', 'gpt4o-mini')."
+        },
+        "agent_hash": {
+          "$ref": "#/$defs/HashDigest",
+          "description": "Hash of the sub-agent binary/model weights. MUST be verifiable."
+        },
+        "agent_version": {
+          "type": "string",
+          "description": "Semantic version of the sub-agent."
+        },
+        "purpose": {
+          "type": "string",
+          "enum": ["ocr", "layout_detection", "table_extraction", "classification", "key_value_extraction", "summarization", "translation", "validation", "custom"],
+          "description": "What this sub-agent does in the pipeline."
+        },
+        "input_type": {
+          "type": "string",
+          "enum": ["raw_document", "extracted_text", "structured_fields", "table_data", "previous_step_output"],
+          "description": "What data this sub-agent receives as input."
+        },
+        "output_type": {
+          "type": "string",
+          "enum": ["extracted_text", "structured_fields", "table_data", "classification_labels", "free_text", "validated_fields"],
+          "description": "What data this sub-agent produces as output."
+        },
+        "enclave_shared": {
+          "type": "boolean",
+          "default": true,
+          "description": "If true, this sub-agent runs in the same enclave as the primary agent. If false, it runs in a separate enclave with its own attestation (cross-enclave invocation)."
+        },
+        "separate_attestation": {
+          "$ref": "#/$defs/AttestationToken",
+          "description": "If enclave_shared is false, the sub-agent's independent attestation. Proves which code ran in the sub-enclave."
+        },
+        "processing_duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time spent in this pipeline step."
+        }
+      }
+    },
+
+    "NumericPrecisionPolicy": {
+      "type": "object",
+      "description": "Controls the precision of numeric values in results to prevent steganographic data exfiltration. An adversarial agent could encode information in insignificant decimal digits or specific rounding patterns. This policy enforces maximum precision and detectable-pattern checks.",
+      "properties": {
+        "max_decimal_places": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2,
+          "description": "Maximum decimal places for currency/monetary fields. Values with more precision MUST be rounded. Default 2 (standard for currency). Set to 0 for integer-only output."
+        },
+        "max_significant_digits": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum significant digits for any numeric field. Prevents encoding data in high-precision floating-point values."
+        },
+        "enforce_standard_rounding": {
+          "type": "boolean",
+          "default": true,
+          "description": "If true, all rounding MUST use IEEE 754 round-half-to-even (banker's rounding). Prevents encoding bits via rounding direction."
+        },
+        "detect_entropy_anomaly": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, the result scanner SHOULD run a statistical test on the trailing digits of numeric fields. Uniform distribution of trailing digits is suspicious in financial data (Benford's law violation). Requires 'statistical' scanner."
+        },
+        "currency_fields_integer_cents": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, all currency/monetary values MUST be expressed as integer cents (e.g., 125042 instead of 1250.42). Eliminates decimal ambiguity entirely."
+        }
+      }
+    },
+
+    "GatewayVisibility": {
+      "type": "object",
+      "description": "Controls what the DSSP Gateway can see. Implements split-knowledge: the gateway orchestrates but SHOULD NOT accumulate enough data to re-identify individuals across engagements.",
+      "required": ["manifests", "results", "audit_events"],
+      "properties": {
+        "manifests": {
+          "type": "string",
+          "enum": ["full", "summary_only", "none"],
+          "description": "'full': gateway sees all manifest fields. 'summary_only': gateway sees only the summary block (counts, no document IDs). 'none': gateway cannot see manifests."
+        },
+        "results": {
+          "type": "string",
+          "enum": ["full", "metadata_only", "verdict_only", "none"],
+          "description": "'full': gateway sees complete results (DANGEROUS — enables correlation). 'metadata_only': gateway sees attestation + PII report, not extraction fields. 'verdict_only': gateway sees only pass/fail. 'none': results never leave owner infra."
+        },
+        "audit_events": {
+          "type": "string",
+          "enum": ["full", "summary_only", "none"],
+          "description": "'full': gateway sees all events. 'summary_only': gateway sees aggregated stats. 'none': events stay on owner infra."
+        },
+        "cross_engagement_correlation": {
+          "type": "boolean",
+          "default": false,
+          "description": "If false (default), the gateway MUST NOT correlate data across different engagements/manifests from the same owner. Implementations SHOULD use per-engagement encryption keys."
+        }
+      }
+    }
+  }
+}
+

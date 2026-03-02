@@ -1,0 +1,416 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dssp.dev/schema/result/v0.1",
+  "title": "DSP Result Envelope",
+  "description": "Layer 3: The structured output produced by a processing agent inside an enclave. This is the ONLY artifact that crosses from the customer's infrastructure to the outside world. It MUST contain structured extractions only — never raw document content, images, full text, or unredacted PII.",
+
+  "type": "object",
+  "required": ["$schema", "dssp_version", "result_id", "contract_id", "session_id", "attestation", "extractions", "pii_report", "result_scan", "produced_at"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "$schema": {
+      "type": "string",
+      "const": "https://dssp.dev/schema/result/v0.1"
+    },
+
+    "dssp_version": {
+      "$ref": "common.schema.json#/$defs/ProtocolVersion"
+    },
+
+    "result_id": {
+      "$ref": "common.schema.json#/$defs/Identifier",
+      "description": "Unique identifier for this result. Prefix: 'rs-'."
+    },
+
+    "contract_id": {
+      "$ref": "common.schema.json#/$defs/Identifier",
+      "description": "The processing contract under which this result was produced."
+    },
+
+    "session_id": {
+      "$ref": "common.schema.json#/$defs/Identifier",
+      "description": "The processing session that produced this result. Prefix: 'ps-'."
+    },
+
+    "produced_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+
+    "attestation": {
+      "type": "object",
+      "required": ["enclave_type", "measurement", "agent_hash", "timestamp", "signature", "claims"],
+      "additionalProperties": false,
+      "description": "Cryptographic proof that this result was produced inside an attested enclave.",
+      "properties": {
+        "enclave_type": { "$ref": "common.schema.json#/$defs/EnclaveType" },
+        "measurement": {
+          "type": "string",
+          "description": "Platform-specific enclave measurement."
+        },
+        "agent_hash": { "$ref": "common.schema.json#/$defs/HashDigest" },
+        "timestamp": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "signed_by": {
+          "type": "string",
+          "description": "Identifier of the signing authority."
+        },
+        "signature": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Signature over the entire result envelope (excluding this signature field)."
+        },
+        "platform_certificate_chain": {
+          "type": "array",
+          "items": { "type": "string", "contentEncoding": "base64" }
+        },
+        "claims": {
+          "type": "object",
+          "required": ["documents_processed", "processing_duration_ms"],
+          "properties": {
+            "documents_processed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "processing_duration_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "memory_peak_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "network_egress_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total bytes sent from the enclave. Should match the result envelope size."
+            },
+            "network_destinations": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "All network destinations contacted during processing. Must match contract's allowed_destinations."
+            },
+            "input_document_hashes": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/HashDigest" },
+              "description": "Hashes of all documents read during processing. Proves exactly which documents were accessed."
+            },
+            "output_result_hash": {
+              "$ref": "common.schema.json#/$defs/HashDigest",
+              "description": "Hash of the entire result envelope (excluding attestation.signature). Allows third parties to verify integrity."
+            },
+            "sub_agent_chain": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/SubAgentAttestation" },
+              "description": "Ordered list of sub-agents/models used during processing. REQUIRED when the primary agent delegates to sub-models (e.g., OCR → layout → extraction → validation). Each entry declares the sub-agent's hash, purpose, and whether it ran in the same enclave. Enables the owner to verify the full multi-model pipeline, not just the orchestrator."
+            }
+          }
+        }
+      }
+    },
+
+    "extractions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/DocumentExtraction" },
+      "description": "Structured data extracted from each processed document."
+    },
+
+    "pii_report": {
+      "$ref": "#/$defs/PIIHandlingReport",
+      "description": "Mandatory report on how PII was handled during this processing session."
+    },
+
+    "result_scan": {
+      "type": "object",
+      "required": ["performed", "verdicts"],
+      "additionalProperties": false,
+      "description": "REQUIRED. Report from the result scanning phase. A separate, audited process that checks result content for PII before it exits the boundary. This is the primary defense against LLM free-text leakage.",
+      "properties": {
+        "performed": {
+          "type": "boolean",
+          "description": "Whether result scanning was actually executed. MUST be true for llm_freeform agents."
+        },
+        "verdicts": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/ResultScanVerdict" },
+          "description": "Verdicts from each scanner that ran. Multiple scanners may run (regex + NER + statistical)."
+        },
+        "overall_passed": {
+          "type": "boolean",
+          "description": "true only if ALL scanners passed. If any scanner failed, the result SHOULD NOT have been delivered (depending on contract.scan_failure_action)."
+        },
+        "fields_modified_by_scan": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of fields that were redacted or modified by the scanning phase (not by the agent's own redaction)."
+        },
+        "scan_duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time spent in the scanning phase. Separate from agent processing time."
+        }
+      }
+    },
+
+    "end_of_session_attestation": {
+      "type": "object",
+      "description": "Fresh attestation produced at session end. Proves the enclave was not compromised during processing. Separate from the initial attestation at session start.",
+      "properties": {
+        "enclave_type": { "$ref": "common.schema.json#/$defs/EnclaveType" },
+        "measurement": {
+          "type": "string",
+          "description": "Enclave measurement at session end. MUST match the start measurement if the enclave was not tampered with."
+        },
+        "measurement_matches_start": {
+          "type": "boolean",
+          "description": "true if the end measurement matches the start measurement. false indicates potential compromise."
+        },
+        "timestamp": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "signature": {
+          "type": "string",
+          "contentEncoding": "base64"
+        }
+      }
+    },
+
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ProcessingError" },
+      "description": "Non-fatal errors encountered during processing. Fatal errors prevent result generation entirely."
+    }
+  },
+
+  "$defs": {
+
+    "DocumentExtraction": {
+      "type": "object",
+      "required": ["source_document_id", "source_document_hash", "extraction_type", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+
+        "source_document_id": {
+          "$ref": "common.schema.json#/$defs/Identifier"
+        },
+
+        "source_document_hash": {
+          "$ref": "common.schema.json#/$defs/HashDigest",
+          "description": "Hash of the document at time of processing. Proves which version was read."
+        },
+
+        "extraction_type": {
+          "$ref": "common.schema.json#/$defs/DocumentClassification",
+          "description": "What type of extraction was performed (may differ from document classification if auto-detected)."
+        },
+
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Overall confidence score for this extraction. 1.0 = highest confidence."
+        },
+
+        "fields": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Key-value extracted fields. Values MUST comply with the contract's pii_redaction_rules. No raw text blocks."
+        },
+
+        "tables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExtractedTable" },
+          "description": "Structured tabular data extracted from the document."
+        },
+
+        "classifications": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ClassificationResult" },
+          "description": "Document classification results (if classify_document was requested)."
+        },
+
+        "validation": {
+          "$ref": "#/$defs/ExtractionValidation",
+          "description": "Self-validation results: did the extraction pass internal consistency checks?"
+        }
+      }
+    },
+
+    "ExtractedTable": {
+      "type": "object",
+      "required": ["name", "columns", "row_count"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Table name (e.g., 'transactions', 'line_items')."
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["string", "number", "date", "boolean", "currency"],
+                "description": "Column data type."
+              },
+              "pii_field": {
+                "$ref": "common.schema.json#/$defs/PIIFieldType",
+                "description": "If this column contains PII, which type. Redaction rules from the contract apply."
+              },
+              "pii_bearing": {
+                "type": "boolean",
+                "default": false,
+                "description": "If true, this column MAY contain embedded PII in free-text (e.g., transaction descriptions with counterparty names). Values in pii_bearing columns MUST be scanned by NER and redacted. Default false. MUST be set to true for 'description', 'memo', 'notes', 'reference' columns in financial documents."
+              }
+            }
+          }
+        },
+        "row_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {}
+          },
+          "description": "Row data. Each row is an array of values matching the columns definition. PII fields MUST be redacted per contract rules."
+        },
+        "checksum": {
+          "$ref": "common.schema.json#/$defs/HashDigest",
+          "description": "Hash of the serialized table data for integrity verification."
+        }
+      }
+    },
+
+    "ClassificationResult": {
+      "type": "object",
+      "required": ["label", "confidence"],
+      "properties": {
+        "label": {
+          "$ref": "common.schema.json#/$defs/DocumentClassification"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        }
+      }
+    },
+
+    "ExtractionValidation": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "Whether all internal validation checks passed."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "passed"],
+            "properties": {
+              "name": { "type": "string" },
+              "passed": { "type": "boolean" },
+              "message": { "type": "string" }
+            }
+          },
+          "description": "Individual validation check results."
+        }
+      }
+    },
+
+    "PIIHandlingReport": {
+      "type": "object",
+      "required": ["fields_encountered", "fields_redacted", "raw_content_included", "compliance_status"],
+      "additionalProperties": false,
+      "properties": {
+
+        "fields_encountered": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/PIIFieldType" },
+          "description": "All PII field types detected during processing."
+        },
+
+        "fields_redacted": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/PIIFieldType" },
+          "description": "PII fields that were redacted in the output."
+        },
+
+        "redaction_methods_applied": {
+          "type": "object",
+          "additionalProperties": { "$ref": "common.schema.json#/$defs/RedactionMethod" },
+          "description": "Map of PIIFieldType → RedactionMethod actually applied."
+        },
+
+        "fields_allowed_by_contract": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/PIIFieldType" },
+          "description": "PII fields that were passed through because the contract explicitly allows them."
+        },
+
+        "raw_content_included": {
+          "type": "boolean",
+          "description": "MUST be false unless the contract explicitly sets raw_content_allowed: true."
+        },
+
+        "compliance_status": {
+          "type": "string",
+          "enum": ["compliant", "violation_detected", "unknown"],
+          "description": "'compliant': all redaction rules were followed. 'violation_detected': agent detected it could not fully comply (result MAY still be produced with best-effort redaction). 'unknown': unable to determine compliance."
+        },
+
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "description"],
+            "properties": {
+              "field": { "type": "string" },
+              "description": { "type": "string" },
+              "severity": {
+                "type": "string",
+                "enum": ["warning", "error"]
+              }
+            }
+          },
+          "description": "Details of any compliance violations. Present only when compliance_status is 'violation_detected'."
+        }
+      }
+    },
+
+    "ProcessingError": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "document_unreadable",
+            "document_encrypted",
+            "document_corrupted",
+            "extraction_failed",
+            "classification_uncertain",
+            "pii_detection_uncertain",
+            "timeout_partial",
+            "memory_limit_reached"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error description. MUST NOT contain document content or PII."
+        },
+        "document_id": {
+          "$ref": "common.schema.json#/$defs/Identifier",
+          "description": "Which document caused the error, if applicable."
+        }
+      }
+    }
+  }
+}
+

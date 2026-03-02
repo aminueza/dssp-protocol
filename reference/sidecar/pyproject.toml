@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dssp-sidecar"
+version = "0.1.0"
+description = "Reference sidecar verifier for the Document Sovereignty Protocol & Privacy"
+requires-python = ">=3.10"
+dependencies = [
+    "psutil>=7.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+dssp-sidecar = "dssp_sidecar.main:main"

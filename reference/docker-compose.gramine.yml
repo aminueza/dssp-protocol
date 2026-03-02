@@ -1,0 +1,25 @@
+# Docker Compose overlay for Gramine enclave mode
+#
+# Usage (gramine-direct / simulation):
+#   docker compose -f docker-compose.yml -f docker-compose.gramine.yml up --build
+#
+# Usage (gramine-sgx / real Intel SGX):
+#   docker compose -f docker-compose.yml -f docker-compose.gramine.yml \
+#       -f docker-compose.sgx.yml up --build
+#
+# The base docker-compose.yml provides: storage, gateway, setup
+# This overlay REPLACES the agent service with the Gramine build
+
+services:
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile.gramine
+    environment:
+      GATEWAY_URL: http://gateway:8080
+      MINIO_ENDPOINT: storage:9000
+      ENCLAVE_MODE: gramine
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+

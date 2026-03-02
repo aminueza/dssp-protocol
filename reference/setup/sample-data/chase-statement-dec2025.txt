@@ -1,0 +1,38 @@
+=====================================
+CHASE BANK - ACCOUNT STATEMENT
+=====================================
+
+Statement Period: December 1, 2025 - December 31, 2025
+
+ACCOUNT INFORMATION
+Account Holder: John Alexander Smith
+Account Number: 1234567890004821
+Routing Number: 021000021
+Account Type: Checking
+Currency: USD
+IBAN: US12345678900048210210
+
+ACCOUNT SUMMARY
+Opening Balance: 1247832.50
+Total Credits: 89250.00
+Total Debits: 34640.75
+Closing Balance: 1302441.75
+
+TRANSACTIONS
+Date|Description|Amount|Balance
+2025-12-01|Wire Transfer from Jane M. Doe|25000.00|1272832.50
+2025-12-02|ACH Payment - Acme Corporation|-4200.00|1268632.50
+2025-12-03|Wire Transfer from Robert Johnson|15000.00|1283632.50
+2025-12-05|Check #4521 - Office Supplies|-850.25|1282782.25
+2025-12-08|Direct Deposit - Salary|12500.00|1295282.25
+2025-12-10|Wire Transfer to Smith & Associates LLC|-8500.00|1286782.25
+2025-12-12|ACH Credit - Investment Return|7250.00|1294032.25
+2025-12-15|Wire Transfer from Maria Garcia|18000.00|1312032.25
+2025-12-18|Debit Card - Amazon.com|-340.50|1311691.75
+2025-12-20|ACH Payment - Insurance Premium|-2750.00|1308941.75
+2025-12-22|Wire Transfer - Year-end Bonus|8000.00|1316941.75
+2025-12-28|ACH Payment - Utility Bills|-1200.00|1315741.75
+2025-12-30|Wire Transfer to Tax Advisor P. Williams|-13300.00|1302441.75
+
+Total Transactions: 13
+
