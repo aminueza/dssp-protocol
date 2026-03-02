@@ -4,7 +4,7 @@ An open protocol for processing sensitive documents without the documents ever l
 
 **Status:** Draft v0.1 | **License:** Apache 2.0
 
-[Specification](spec/dssp-v0.1.md) · [API (OpenAPI 3.1)](spec/dssp-api-v0.1.yaml) · [Quick Start](#quick-start) · [Example](examples/bank-statement-extraction/) · [Governance](GOVERNANCE.md)
+[Specification](spec/dssp-v0.1.md) · [API (OpenAPI 3.1)](spec/dssp-api-v0.1.yaml) · [Agent Guide](AGENTS.md) · [Quick Start](#quick-start) · [Example](examples/bank-statement-extraction/) · [Governance](GOVERNANCE.md)
 
 ---
 
@@ -106,12 +106,13 @@ dssp-protocol/
 │   ├── test-vectors/               Interoperability test vectors
 │   └── docker-compose.yml          Full demo stack
 ├── examples/                       Complete lifecycle examples
+├── AGENTS.md                       Agent developer guide
 ├── ARCHITECTURE.md                 Component architecture guide
 ├── GOVERNANCE.md                   RFC process and governance
 └── LICENSE                         Apache 2.0
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for details on each component.
+See [AGENTS.md](AGENTS.md) for the agent developer guide and [ARCHITECTURE.md](ARCHITECTURE.md) for component details.
 
 ## Enclave support
 
