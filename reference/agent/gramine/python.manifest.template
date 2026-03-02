@@ -1,0 +1,85 @@
+# Gramine manifest for DSP Enclave Agent
+#
+# Usage:
+#   gramine-manifest -Dlog_level=error -Darch_libdir=/lib/x86_64-linux-gnu \
+#       python.manifest.template > python.manifest
+#   gramine-direct python /app/main.py        # simulation (no SGX)
+#   gramine-sgx python /app/main.py           # real SGX enclave
+#
+# For SGX mode, also run:
+#   gramine-sgx-sign --manifest python.manifest --output python.manifest.sgx --key enclave-key.pem
+#   gramine-sgx-get-token --output python.token --sig python.sig
+
+[libos]
+entrypoint = "/usr/bin/python3"
+
+[loader]
+entrypoint = "file:{{ gramine.libos }}"
+log_level = "{{ log_level }}"
+argv = ["python3", "/app/main.py"]
+env.LD_LIBRARY_PATH = "/lib:{{ arch_libdir }}:/usr/lib:/usr/lib/python3/lib"
+
+# Pass environment variables from Docker to enclave
+# Only explicitly listed vars are visible inside the enclave
+env.GATEWAY_URL = { passthrough = true }
+env.MINIO_ENDPOINT = { passthrough = true }
+env.ENCLAVE_MODE = "gramine"
+env.PYTHONDONTWRITEBYTECODE = "1"
+
+[sys]
+enable_sigterm_injection = true
+stack.size = "2M"
+brk.max_size = "256M"
+
+[sgx]
+enclave_size = "512M"
+max_threads = 8
+debug = false
+# Set to true during development to allow gdb attach
+# debug = true
+
+# Remote attestation type: none, dcap, epid
+# Use "dcap" for production attestation
+remote_attestation = "dcap"
+
+# ISV Product ID and Security Version
+isvprodid = 1
+isvsvn = 1
+
+# Trusted files: Gramine measures these at load time → MRENCLAVE
+# Any modification to these files changes the enclave measurement
+trusted_files = [
+    "file:{{ gramine.libos }}",
+    "file:{{ gramine.runtimedir() }}/",
+    "file:{{ arch_libdir }}/",
+    "file:/usr/lib/python3/",
+    "file:/usr/lib/python3.12/",
+    "file:/usr/local/lib/python3.12/",
+    "file:/usr/bin/python3",
+    "file:/usr/bin/python3.12",
+    "file:/app/main.py",
+    "file:/app/attestation.py",
+    "file:/app/requirements.txt",
+]
+
+# Allowed files: can be read/written but NOT measured (not in MRENCLAVE)
+# Network sockets and temporary files go here
+allowed_files = [
+    "file:/tmp/",
+    "file:/dev/urandom",
+]
+
+[fs]
+mounts = [
+    { path = "/lib",                     uri = "file:{{ gramine.runtimedir() }}" },
+    { path = "{{ arch_libdir }}",        uri = "file:{{ arch_libdir }}" },
+    { path = "/usr/lib/python3",         uri = "file:/usr/lib/python3" },
+    { path = "/usr/lib/python3.12",      uri = "file:/usr/lib/python3.12" },
+    { path = "/usr/local/lib/python3.12", uri = "file:/usr/local/lib/python3.12" },
+    { path = "/app",                     uri = "file:/app" },
+    { path = "/tmp",                     uri = "file:/tmp",      type = "tmpfs" },
+    { path = "/etc/resolv.conf",         uri = "file:/etc/resolv.conf" },
+    { path = "/etc/hosts",               uri = "file:/etc/hosts" },
+    { path = "/etc/nsswitch.conf",       uri = "file:/etc/nsswitch.conf" },
+]
+

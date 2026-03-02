@@ -1,0 +1,60 @@
+{
+  "description": "RFC 8785 canonical JSON serialization test vectors",
+  "spec_reference": "DSP v0.1, §2.5.1",
+  "test_cases": [
+    {
+      "id": "cj-001",
+      "description": "Object key ordering — keys must be sorted lexicographically by Unicode code point",
+      "input": {"z": 1, "a": 2, "m": 3},
+      "expected_canonical": "{\"a\":2,\"m\":3,\"z\":1}"
+    },
+    {
+      "id": "cj-002",
+      "description": "Nested object key ordering",
+      "input": {"b": {"z": 1, "a": 2}, "a": 1},
+      "expected_canonical": "{\"a\":1,\"b\":{\"a\":2,\"z\":1}}"
+    },
+    {
+      "id": "cj-003",
+      "description": "Number serialization — no trailing zeros",
+      "input": {"value": 1.0, "precise": 2.50},
+      "expected_canonical": "{\"precise\":2.5,\"value\":1}"
+    },
+    {
+      "id": "cj-004",
+      "description": "Number serialization — no positive sign, no leading zeros",
+      "input": {"positive": 42, "negative": -17, "zero": 0},
+      "expected_canonical": "{\"negative\":-17,\"positive\":42,\"zero\":0}"
+    },
+    {
+      "id": "cj-005",
+      "description": "String escaping — minimal escaping per RFC 8785",
+      "input": {"text": "hello \"world\"", "tab": "a\tb", "newline": "a\nb"},
+      "expected_canonical": "{\"newline\":\"a\\nb\",\"tab\":\"a\\tb\",\"text\":\"hello \\\"world\\\"\"}"
+    },
+    {
+      "id": "cj-006",
+      "description": "Boolean and null values",
+      "input": {"flag": true, "empty": null, "active": false},
+      "expected_canonical": "{\"active\":false,\"empty\":null,\"flag\":true}"
+    },
+    {
+      "id": "cj-007",
+      "description": "Array ordering preserved (arrays are NOT sorted)",
+      "input": {"items": [3, 1, 2], "name": "test"},
+      "expected_canonical": "{\"items\":[3,1,2],\"name\":\"test\"}"
+    },
+    {
+      "id": "cj-008",
+      "description": "DSP-realistic audit event object",
+      "input": {
+        "event_type": "session.started",
+        "timestamp": "2026-02-15T10:30:00Z",
+        "sequence_number": 1,
+        "actor": {"type": "agent", "org_id": "org-docuverify"},
+        "dsp_version": "0.1"
+      },
+      "expected_canonical": "{\"actor\":{\"org_id\":\"org-docuverify\",\"type\":\"agent\"},\"dsp_version\":\"0.1\",\"event_type\":\"session.started\",\"sequence_number\":1,\"timestamp\":\"2026-02-15T10:30:00Z\"}"
+    }
+  ]
+}

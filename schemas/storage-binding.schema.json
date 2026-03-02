@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsp.dev/schema/storage-binding/v0.1",
+  "title": "DSP Storage Binding Interface",
+  "description": "Layer 0: Abstract interface that any storage backend must implement to be DSP-compatible. DSP never mandates a specific storage technology. This schema defines the operations, inputs, and outputs that a storage adapter must provide. Implementations exist for S3-compatible (MinIO, AWS, SeaweedFS), Azure Blob, POSIX filesystems, and more.",
+
+  "type": "object",
+  "required": ["$schema", "dsp_version", "binding_id", "adapter_type", "capabilities"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "$schema": {
+      "type": "string",
+      "const": "https://dsp.dev/schema/storage-binding/v0.1"
+    },
+
+    "dsp_version": {
+      "$ref": "common.schema.json#/$defs/ProtocolVersion"
+    },
+
+    "binding_id": {
+      "type": "string",
+      "description": "Unique identifier for this storage binding configuration."
+    },
+
+    "adapter_type": {
+      "type": "string",
+      "enum": ["s3", "azure-blob", "gcs", "posix", "nfs", "glusterfs", "ceph-rgw", "custom"],
+      "description": "Storage backend type. 'custom' requires the customer to implement the DSP StorageAdapter interface."
+    },
+
+    "capabilities": {
+      "type": "object",
+      "required": ["list_documents", "grant_access", "read_document", "verify_integrity"],
+      "additionalProperties": false,
+      "properties": {
+
+        "list_documents": {
+          "type": "boolean",
+          "description": "Adapter can enumerate documents and produce manifests."
+        },
+
+        "grant_access": {
+          "type": "boolean",
+          "description": "Adapter can issue scoped, time-limited access tokens."
+        },
+
+        "read_document": {
+          "type": "boolean",
+          "description": "Adapter can serve document content to an authenticated enclave."
+        },
+
+        "verify_integrity": {
+          "type": "boolean",
+          "description": "Adapter can verify document hashes match stored content."
+        },
+
+        "encryption_at_rest": {
+          "type": "boolean",
+          "default": false,
+          "description": "Storage encrypts documents at rest with customer-managed keys."
+        },
+
+        "versioning": {
+          "type": "boolean",
+          "default": false,
+          "description": "Storage supports document versioning."
+        },
+
+        "object_lock": {
+          "type": "boolean",
+          "default": false,
+          "description": "Storage supports WORM (Write Once Read Many) immutability."
+        },
+
+        "audit_logging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Storage natively logs access events (e.g., S3 access logs, Azure Monitor)."
+        },
+
+        "presigned_urls": {
+          "type": "boolean",
+          "default": false,
+          "description": "Adapter can generate pre-signed URLs for direct enclave-to-storage access."
+        }
+      }
+    },
+
+    "connection": {
+      "type": "object",
+      "description": "Connection configuration. Sensitive fields (keys, secrets) MUST NOT be stored in this schema — they should be injected via environment variables or secret managers.",
+      "properties": {
+
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "Storage endpoint URL. Examples: 'https://s3.amazonaws.com', 'https://minio.internal:9000'."
+        },
+
+        "region": {
+          "type": "string",
+          "description": "Storage region, if applicable."
+        },
+
+        "bucket": {
+          "type": "string",
+          "description": "Default bucket/container name for S3/Blob adapters."
+        },
+
+        "prefix": {
+          "type": "string",
+          "description": "Object key prefix. Scopes the adapter to a subset of the storage."
+        },
+
+        "base_path": {
+          "type": "string",
+          "description": "For POSIX/NFS/GlusterFS: base directory path."
+        },
+
+        "tls_required": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require TLS for all storage communications. MUST be true for production."
+        },
+
+        "tls_ca_certificate": {
+          "type": "string",
+          "description": "Path to custom CA certificate for self-signed endpoints."
+        },
+
+        "auth_method": {
+          "type": "string",
+          "enum": [
+            "access_key",
+            "iam_role",
+            "managed_identity",
+            "service_account",
+            "kerberos",
+            "mtls",
+            "oidc_token"
+          ],
+          "description": "Authentication method for the storage backend."
+        },
+
+        "credential_source": {
+          "type": "string",
+          "enum": ["environment", "vault", "file", "metadata_service"],
+          "description": "Where credentials are loaded from. Never inline."
+        }
+      }
+    },
+
+    "operations": {
+      "type": "object",
+      "description": "Defines the operations interface. Each operation maps to an API call the adapter must implement.",
+      "properties": {
+
+        "list_documents": {
+          "type": "object",
+          "description": "Enumerate documents and produce a DSP manifest.",
+          "properties": {
+            "input": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "description": "Engagement, folder, or tag scope."
+                },
+                "filter": {
+                  "type": "object",
+                  "properties": {
+                    "classifications": {
+                      "type": "array",
+                      "items": { "$ref": "common.schema.json#/$defs/DocumentClassification" }
+                    },
+                    "date_from": { "type": "string", "format": "date" },
+                    "date_to": { "type": "string", "format": "date" },
+                    "tags": { "type": "array", "items": { "type": "string" } },
+                    "max_results": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              }
+            },
+            "output": {
+              "type": "string",
+              "const": "DocumentManifest",
+              "description": "Returns a DSP Document Manifest (manifest.schema.json)."
+            },
+            "pii_exposure": {
+              "type": "string",
+              "const": "none",
+              "description": "This operation MUST NOT expose document content or PII."
+            }
+          }
+        },
+
+        "grant_access": {
+          "type": "object",
+          "description": "Issue a scoped, time-limited access token for an attested enclave.",
+          "properties": {
+            "input": {
+              "type": "object",
+              "required": ["document_ids", "agent_id", "operations", "ttl_seconds"],
+              "properties": {
+                "document_ids": {
+                  "type": "array",
+                  "items": { "$ref": "common.schema.json#/$defs/Identifier" }
+                },
+                "agent_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+                "operations": {
+                  "type": "array",
+                  "items": { "$ref": "common.schema.json#/$defs/Operation" }
+                },
+                "ttl_seconds": { "type": "integer", "minimum": 1 },
+                "enclave_attestation": {
+                  "$ref": "common.schema.json#/$defs/AttestationToken",
+                  "description": "The agent must prove it's running in an attested enclave before receiving an access token."
+                }
+              }
+            },
+            "output": {
+              "type": "string",
+              "const": "ScopedToken",
+              "description": "Returns a DSP ScopedToken (common.schema.json#/$defs/ScopedToken)."
+            },
+            "pii_exposure": {
+              "type": "string",
+              "const": "none"
+            }
+          }
+        },
+
+        "read_document": {
+          "type": "object",
+          "description": "Serve document content to an authenticated enclave. This is the ONLY operation that exposes document content, and it MUST only deliver to a verified enclave.",
+          "properties": {
+            "input": {
+              "type": "object",
+              "required": ["access_token"],
+              "properties": {
+                "access_token": {
+                  "type": "string",
+                  "description": "ScopedToken obtained via grant_access."
+                }
+              }
+            },
+            "output": {
+              "type": "string",
+              "const": "EncryptedDocumentStream",
+              "description": "Document bytes, encrypted with a key only the enclave can decrypt."
+            },
+            "pii_exposure": {
+              "type": "string",
+              "const": "enclave_only",
+              "description": "Content is ONLY accessible inside the attested enclave."
+            }
+          }
+        },
+
+        "verify_integrity": {
+          "type": "object",
+          "description": "Verify that a document's content matches its declared hash.",
+          "properties": {
+            "input": {
+              "type": "object",
+              "required": ["document_id", "expected_hash"],
+              "properties": {
+                "document_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+                "expected_hash": { "$ref": "common.schema.json#/$defs/HashDigest" }
+              }
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "matches": { "type": "boolean" },
+                "actual_hash": { "$ref": "common.schema.json#/$defs/HashDigest" }
+              }
+            },
+            "pii_exposure": {
+              "type": "string",
+              "const": "none"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

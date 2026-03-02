@@ -1,0 +1,19 @@
+# DSP Specification Owners
+# These owners are responsible for reviewing changes to each area.
+
+# Specification and schemas
+/spec/                    @YOUR-GITHUB-USERNAME
+/schemas/                 @YOUR-GITHUB-USERNAME
+
+# Reference implementation
+/reference/gateway/       @YOUR-GITHUB-USERNAME
+/reference/agent/         @YOUR-GITHUB-USERNAME
+/reference/scanner/       @YOUR-GITHUB-USERNAME
+/reference/sidecar/       @YOUR-GITHUB-USERNAME
+/reference/conformance/   @YOUR-GITHUB-USERNAME
+
+# Documentation
+/*.md                     @YOUR-GITHUB-USERNAME
+
+# CI and tooling
+/.github/                 @YOUR-GITHUB-USERNAME

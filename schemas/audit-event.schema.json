@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsp.dev/schema/audit/v0.1",
+  "title": "DSP Audit Event",
+  "description": "Layer 4: Immutable, append-only audit events that record every operation in the DSP lifecycle. Events form a Merkle chain — each event references the hash of the previous event, making the ledger tamper-evident. The audit ledger is stored on the document owner's infrastructure and MAY be replicated to the DSP Gateway for dashboard visibility (with PII stripped).",
+
+  "type": "object",
+  "required": ["$schema", "dsp_version", "event_id", "event_type", "timestamp", "actor", "action", "outcome", "event_hash"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "$schema": {
+      "type": "string",
+      "const": "https://dsp.dev/schema/audit/v0.1"
+    },
+
+    "dsp_version": {
+      "$ref": "common.schema.json#/$defs/ProtocolVersion"
+    },
+
+    "event_id": {
+      "$ref": "common.schema.json#/$defs/Identifier",
+      "description": "Unique event identifier. Prefix: 'ev-'."
+    },
+
+    "previous_event_hash": {
+      "$ref": "common.schema.json#/$defs/HashDigest",
+      "description": "Hash of the previous event in the chain. Null/absent for the genesis event. This creates a tamper-evident Merkle chain."
+    },
+
+    "event_hash": {
+      "$ref": "common.schema.json#/$defs/HashDigest",
+      "description": "Hash of this event (excluding event_hash itself). Computed over all other fields in canonical JSON form."
+    },
+
+    "sequence_number": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing sequence number. The genesis event is 0."
+    },
+
+    "timestamp": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "manifest.created",
+        "manifest.updated",
+        "manifest.expired",
+
+        "contract.created",
+        "contract.updated",
+        "contract.suspended",
+        "contract.revoked",
+        "contract.expired",
+
+        "session.started",
+        "session.completed",
+        "session.failed",
+        "session.terminated",
+        "session.timeout",
+
+        "document.accessed",
+        "document.processed",
+
+        "result.produced",
+        "result.delivered",
+        "result.rejected",
+        "result.quarantined",
+        "result.scan_passed",
+        "result.scan_failed",
+
+        "attestation.verified",
+        "attestation.failed",
+        "attestation.end_of_session",
+        "attestation.heartbeat",
+
+        "sanitization.applied",
+        "sanitization.injection_detected",
+
+        "sidecar.network_mismatch",
+        "sidecar.anomaly_detected",
+
+        "privacy_budget.consumed",
+        "privacy_budget.exceeded",
+
+        "violation.detected",
+        "violation.escalated",
+
+        "access.granted",
+        "access.denied",
+        "access.revoked",
+
+        "ledger.genesis",
+        "ledger.checkpoint"
+      ],
+      "description": "Type of event. Determines which fields in 'action' and 'subject' are relevant."
+    },
+
+    "actor": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["owner", "agent", "consumer", "gateway", "system"],
+          "description": "Who performed the action."
+        },
+        "org_id": { "$ref": "common.schema.json#/$defs/OrgIdentifier" },
+        "agent_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+        "user_id": {
+          "type": "string",
+          "description": "Opaque user identifier (not PII — use an internal ID, never email/name)."
+        }
+      }
+    },
+
+    "subject": {
+      "type": "object",
+      "description": "What the action was performed on.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["manifest", "contract", "session", "document", "document_set", "result", "attestation", "ledger"]
+        },
+        "manifest_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+        "contract_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+        "session_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+        "result_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+        "document_ids": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/Identifier" }
+        },
+        "document_hashes": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/HashDigest" },
+          "description": "Content hashes of documents involved. Proves which exact versions were affected."
+        }
+      }
+    },
+
+    "action": {
+      "type": "object",
+      "description": "Details of what happened.",
+      "properties": {
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/Operation" }
+        },
+        "contract_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+        "contract_version": { "type": "integer" },
+        "result_id": { "$ref": "common.schema.json#/$defs/Identifier" },
+        "enclave_attestation": {
+          "$ref": "common.schema.json#/$defs/AttestationToken",
+          "description": "Attestation proof associated with this action, if applicable."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable reason for the action (revocation reason, denial reason, etc.). MUST NOT contain PII."
+        }
+      }
+    },
+
+    "outcome": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["success", "failure", "partial", "denied"],
+          "description": "Outcome of the action."
+        },
+        "error_code": {
+          "type": "string",
+          "description": "Machine-readable error code if status is 'failure' or 'denied'."
+        },
+        "error_message": {
+          "type": "string",
+          "description": "Human-readable error description. MUST NOT contain PII or document content."
+        },
+        "pii_exposure": {
+          "type": "string",
+          "enum": ["none", "redacted_only", "violation"],
+          "description": "'none': no PII in results. 'redacted_only': PII was present but all redacted per contract. 'violation': potential PII leak detected."
+        },
+        "documents_touched": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of documents accessed during this action."
+        },
+        "data_egress_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total bytes that left the enclave/boundary."
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Wall-clock duration of the action."
+        }
+      }
+    },
+
+    "violation_details": {
+      "type": "object",
+      "description": "Present only when event_type is 'violation.detected' or 'violation.escalated'.",
+      "properties": {
+        "violation_type": {
+          "type": "string",
+          "enum": [
+            "unauthorized_network_egress",
+            "pii_leak_detected",
+            "pii_leak_freetext",
+            "pii_reidentification_risk",
+            "contract_exceeded",
+            "attestation_mismatch",
+            "attestation_end_mismatch",
+            "session_timeout_exceeded",
+            "document_access_denied",
+            "storage_policy_violated",
+            "agent_hash_mismatch",
+            "result_scan_failed",
+            "prompt_injection_detected",
+            "privacy_budget_exceeded",
+            "sidecar_network_mismatch",
+            "free_text_policy_violated",
+            "heartbeat_missing"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "description": {
+          "type": "string",
+          "description": "What happened. MUST NOT contain PII."
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Machine-readable evidence of the violation. Structure depends on violation_type.",
+          "additionalProperties": true
+        },
+        "auto_action_taken": {
+          "type": "string",
+          "enum": ["none", "session_terminated", "contract_suspended", "access_revoked"],
+          "description": "Automatic remediation action taken by the system."
+        }
+      }
+    },
+
+    "gateway_received_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp",
+      "description": "When the DSP Gateway received this event (if replicated). Absent for events only stored locally."
+    }
+  }
+}
+

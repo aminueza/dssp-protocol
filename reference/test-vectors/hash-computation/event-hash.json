@@ -1,0 +1,42 @@
+{
+  "description": "Audit event hash computation test vectors",
+  "spec_reference": "DSP v0.1, §2.5.1 and §3.3.4",
+  "algorithm": "sha-256",
+  "test_cases": [
+    {
+      "id": "eh-001",
+      "description": "Genesis event hash computation",
+      "input": {
+        "dsp_version": "0.1",
+        "event_id": "ev-0000000000000001",
+        "sequence_number": 0,
+        "timestamp": "2026-02-15T10:00:00Z",
+        "event_type": "ledger.genesis",
+        "actor": {"type": "system"},
+        "subject": {"type": "ledger"},
+        "outcome": {"status": "success"}
+      },
+      "canonical_form": "{\"actor\":{\"type\":\"system\"},\"dsp_version\":\"0.1\",\"event_id\":\"ev-0000000000000001\",\"event_type\":\"ledger.genesis\",\"outcome\":{\"status\":\"success\"},\"sequence_number\":0,\"subject\":{\"type\":\"ledger\"},\"timestamp\":\"2026-02-15T10:00:00Z\"}",
+      "expected_hash": "sha-256:c9cb28f13e6ef09cf5faebaa24de5dc11ca7c39fdf934952dfacbdf94a370935"
+    },
+    {
+      "id": "eh-002",
+      "description": "Session started event hash computation",
+      "input": {
+        "dsp_version": "0.1",
+        "event_id": "ev-0000000000000002",
+        "previous_event_hash": {"algorithm": "sha-256", "value": "c9cb28f13e6ef09cf5faebaa24de5dc11ca7c39fdf934952dfacbdf94a370935"},
+        "sequence_number": 1,
+        "timestamp": "2026-02-15T10:30:00Z",
+        "event_type": "session.started",
+        "actor": {"type": "agent", "org_id": "org-docuverify", "agent_id": "ag-dv-extractor-v4"},
+        "subject": {"type": "session", "session_id": "ps-abc123"},
+        "action": {"contract_id": "ct-def456"},
+        "outcome": {"status": "success"}
+      },
+      "canonical_form": "{\"action\":{\"contract_id\":\"ct-def456\"},\"actor\":{\"agent_id\":\"ag-dv-extractor-v4\",\"org_id\":\"org-docuverify\",\"type\":\"agent\"},\"dsp_version\":\"0.1\",\"event_id\":\"ev-0000000000000002\",\"event_type\":\"session.started\",\"outcome\":{\"status\":\"success\"},\"previous_event_hash\":{\"algorithm\":\"sha-256\",\"value\":\"c9cb28f13e6ef09cf5faebaa24de5dc11ca7c39fdf934952dfacbdf94a370935\"},\"sequence_number\":1,\"subject\":{\"session_id\":\"ps-abc123\",\"type\":\"session\"},\"timestamp\":\"2026-02-15T10:30:00Z\"}",
+      "expected_hash": "sha-256:4f066f73ef9039457c0c81d610fed1084a1386373fdd6aff52436328cfc387ea"
+    }
+  ],
+  "notes": "Implementations MUST compute the SHA-256 hash of the RFC 8785 canonical JSON form of the event object (excluding the event_hash field itself). The expected_hash values have been verified by running the canonical JSON through SHA-256."
+}

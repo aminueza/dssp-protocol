@@ -1,0 +1,302 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" font-family="Inter, -apple-system, Segoe UI, sans-serif">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748B"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16A34A"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="900" fill="#FAFBFC"/>
+
+  <!-- Title -->
+  <text x="600" y="36" text-anchor="middle" font-size="22" font-weight="700" fill="#0F172A">Document Sovereignty Protocol (DSP)</text>
+  <text x="600" y="56" text-anchor="middle" font-size="13" fill="#64748B">Documents never leave the owner's infrastructure. Only structured, PII-redacted results exit.</text>
+
+  <!-- ============================================= -->
+  <!-- THREE MAIN ZONES                              -->
+  <!-- ============================================= -->
+
+  <!-- ZONE 1: Document Owner -->
+  <rect x="30" y="80" width="380" height="430" rx="12" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="220" y="108" text-anchor="middle" font-size="14" font-weight="700" fill="#1E40AF">DOCUMENT OWNER</text>
+  <text x="220" y="124" text-anchor="middle" font-size="11" fill="#3B82F6">Customer infrastructure, customer keys</text>
+
+  <!-- Storage box -->
+  <rect x="55" y="142" width="155" height="90" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="132" y="164" text-anchor="middle" font-size="12" font-weight="600" fill="#1E3A8A">Storage</text>
+  <text x="132" y="180" text-anchor="middle" font-size="10" fill="#64748B">MinIO / S3 / Azure</text>
+  <text x="132" y="194" text-anchor="middle" font-size="10" fill="#64748B">GCS / any S3-compat</text>
+  <rect x="72" y="206" width="120" height="18" rx="3" fill="#DBEAFE"/>
+  <text x="132" y="218" text-anchor="middle" font-size="9" fill="#1E40AF">bank-stmt-dec.pdf</text>
+
+  <!-- TEE box -->
+  <rect x="55" y="248" width="330" height="245" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="220" y="270" text-anchor="middle" font-size="12" font-weight="700" fill="#1E3A8A">Trusted Execution Environment</text>
+  <text x="220" y="286" text-anchor="middle" font-size="10" fill="#64748B">SGX / SEV-SNP / TDX / Nitro / Gramine</text>
+
+  <!-- Inside TEE: steps -->
+  <rect x="75" y="300" width="140" height="38" rx="6" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="145" y="316" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">1. Sanitize</text>
+  <text x="145" y="330" text-anchor="middle" font-size="9" fill="#4B5563">Strip hidden text, JS</text>
+
+  <rect x="235" y="300" width="140" height="38" rx="6" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="305" y="316" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">2. Process</text>
+  <text x="305" y="330" text-anchor="middle" font-size="9" fill="#4B5563">OCR, extract, classify</text>
+
+  <!-- Arrow 1->2 -->
+  <line x1="215" y1="319" x2="233" y2="319" stroke="#64748B" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <rect x="75" y="350" width="140" height="38" rx="6" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="145" y="366" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">3. Redact PII</text>
+  <text x="145" y="380" text-anchor="middle" font-size="9" fill="#4B5563">Hash, mask, suppress</text>
+
+  <rect x="235" y="350" width="140" height="38" rx="6" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="305" y="366" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">4. Scan result</text>
+  <text x="305" y="380" text-anchor="middle" font-size="9" fill="#4B5563">Regex, NER, Benford</text>
+
+  <!-- Arrow 2->3, 3->4 -->
+  <line x1="305" y1="338" x2="305" y2="343" stroke="#64748B" stroke-width="1"/>
+  <line x1="305" y1="343" x2="145" y2="343" stroke="#64748B" stroke-width="1"/>
+  <line x1="145" y1="343" x2="145" y2="348" stroke="#64748B" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="215" y1="369" x2="233" y2="369" stroke="#64748B" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Attest -->
+  <rect x="120" y="403" width="200" height="34" rx="6" fill="#FEF3C7" stroke="#FCD34D" stroke-width="1"/>
+  <text x="220" y="418" text-anchor="middle" font-size="10" font-weight="600" fill="#92400E">5. Generate attestation</text>
+  <text x="220" y="430" text-anchor="middle" font-size="9" fill="#92400E">Cryptographic proof of what ran</text>
+
+  <!-- Arrow 4->5 -->
+  <line x1="305" y1="388" x2="305" y2="395" stroke="#64748B" stroke-width="1"/>
+  <line x1="305" y1="395" x2="220" y2="395" stroke="#64748B" stroke-width="1"/>
+  <line x1="220" y1="395" x2="220" y2="401" stroke="#64748B" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- Sidecar label -->
+  <rect x="75" y="450" width="290" height="28" rx="5" fill="#FFF7ED" stroke="#FDBA74" stroke-width="1"/>
+  <text x="220" y="468" text-anchor="middle" font-size="10" fill="#9A3412">Sidecar verifier monitors network, memory, DNS (independent)</text>
+
+  <!-- ============================================= -->
+  <!-- ZONE 2: DSP Gateway -->
+  <rect x="440" y="80" width="310" height="430" rx="12" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="595" y="108" text-anchor="middle" font-size="14" font-weight="700" fill="#5B21B6">DSP GATEWAY</text>
+  <text x="595" y="124" text-anchor="middle" font-size="11" fill="#7C3AED">Orchestrator (split-knowledge, sees metadata only)</text>
+
+  <!-- Gateway functions -->
+  <rect x="465" y="142" width="260" height="38" rx="6" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="1"/>
+  <text x="480" y="158" font-size="11" font-weight="600" fill="#5B21B6">Manifest CRUD</text>
+  <text x="480" y="172" font-size="9" fill="#64748B">Document inventory (metadata only)</text>
+
+  <rect x="465" y="190" width="260" height="38" rx="6" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="1"/>
+  <text x="480" y="206" font-size="11" font-weight="600" fill="#5B21B6">Contract Enforcement</text>
+  <text x="480" y="220" font-size="9" fill="#64748B">Permissions, limits, expiry, revocation</text>
+
+  <rect x="465" y="238" width="260" height="38" rx="6" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="1"/>
+  <text x="480" y="254" font-size="11" font-weight="600" fill="#5B21B6">Session Management</text>
+  <text x="480" y="268" font-size="9" fill="#64748B">Start, heartbeat, complete, timeout</text>
+
+  <rect x="465" y="286" width="260" height="38" rx="6" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="1"/>
+  <text x="480" y="302" font-size="11" font-weight="600" fill="#5B21B6">Privacy Budget</text>
+  <text x="480" y="316" font-size="9" fill="#64748B">Limits re-identification across sessions</text>
+
+  <rect x="465" y="334" width="260" height="38" rx="6" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="1"/>
+  <text x="480" y="350" font-size="11" font-weight="600" fill="#5B21B6">Result Validation</text>
+  <text x="480" y="364" font-size="9" fill="#64748B">PII scanner, scan verdicts, precision</text>
+
+  <rect x="465" y="382" width="260" height="38" rx="6" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="1"/>
+  <text x="480" y="398" font-size="11" font-weight="600" fill="#5B21B6">Audit Chain</text>
+  <text x="480" y="412" font-size="9" fill="#64748B">Merkle-chained event ledger</text>
+
+  <!-- Gateway callout -->
+  <rect x="465" y="435" width="260" height="36" rx="6" fill="#ECFDF5" stroke="#6EE7B7" stroke-width="1"/>
+  <text x="595" y="450" text-anchor="middle" font-size="10" font-weight="600" fill="#065F46">Gateway never sees raw documents</text>
+  <text x="595" y="463" text-anchor="middle" font-size="9" fill="#065F46">Only metadata and redacted results</text>
+
+  <!-- ============================================= -->
+  <!-- ZONE 3: Consumer -->
+  <rect x="780" y="80" width="390" height="430" rx="12" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="975" y="108" text-anchor="middle" font-size="14" font-weight="700" fill="#C2410C">CONSUMER</text>
+  <text x="975" y="124" text-anchor="middle" font-size="11" fill="#EA580C">Audit firm, AI tool, processor</text>
+
+  <!-- What consumer gets -->
+  <text x="805" y="152" font-size="12" font-weight="600" fill="#1E293B">Receives:</text>
+
+  <rect x="805" y="162" width="340" height="30" rx="5" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="820" y="182" font-size="11" fill="#166534">&#10003; Structured extraction results (tables, fields)</text>
+
+  <rect x="805" y="200" width="340" height="30" rx="5" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="820" y="220" font-size="11" fill="#166534">&#10003; Attestation proof (what code ran, where)</text>
+
+  <rect x="805" y="238" width="340" height="30" rx="5" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="820" y="258" font-size="11" fill="#166534">&#10003; PII handling report + scan verdicts</text>
+
+  <rect x="805" y="276" width="340" height="30" rx="5" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="820" y="296" font-size="11" fill="#166534">&#10003; Merkle-chained audit trail</text>
+
+  <text x="805" y="330" font-size="12" font-weight="600" fill="#1E293B">Never receives:</text>
+
+  <rect x="805" y="340" width="340" height="30" rx="5" fill="#FEF2F2" stroke="#FECACA" stroke-width="1"/>
+  <text x="820" y="360" font-size="11" fill="#DC2626">&#10007; Original documents or raw content</text>
+
+  <rect x="805" y="378" width="340" height="30" rx="5" fill="#FEF2F2" stroke="#FECACA" stroke-width="1"/>
+  <text x="820" y="398" font-size="11" fill="#DC2626">&#10007; Unredacted PII (names, accounts, tax IDs)</text>
+
+  <rect x="805" y="416" width="340" height="30" rx="5" fill="#FEF2F2" stroke="#FECACA" stroke-width="1"/>
+  <text x="820" y="436" font-size="11" fill="#DC2626">&#10007; Storage credentials or encryption keys</text>
+
+  <!-- PII Redaction example -->
+  <text x="805" y="470" font-size="11" font-weight="600" fill="#1E293B">PII redaction example:</text>
+  <rect x="805" y="478" width="340" height="24" rx="4" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+  <text x="815" y="494" font-size="10" font-family="monospace" fill="#334155">John Smith &#8594; sha256:ef1a579...</text>
+
+  <!-- ============================================= -->
+  <!-- FLOW ARROWS between zones                     -->
+  <!-- ============================================= -->
+
+  <!-- Owner -> Gateway: "redacted results + attestation" -->
+  <line x1="410" y1="295" x2="438" y2="295" stroke="#16A34A" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="424" y="288" text-anchor="middle" font-size="8" fill="#16A34A" transform="rotate(-90, 424, 288)">redacted results</text>
+
+  <!-- Gateway -> Consumer: "validated results" -->
+  <line x1="750" y1="295" x2="778" y2="295" stroke="#16A34A" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="764" y="288" text-anchor="middle" font-size="8" fill="#16A34A" transform="rotate(-90, 764, 288)">validated results</text>
+
+  <!-- Red X: no raw docs flow -->
+  <text x="424" y="322" text-anchor="middle" font-size="18" fill="#DC2626" font-weight="700">&#10007;</text>
+  <text x="424" y="338" text-anchor="middle" font-size="8" fill="#DC2626">no raw docs</text>
+
+  <!-- ============================================= -->
+  <!-- AUDIT CHAIN                                   -->
+  <!-- ============================================= -->
+  <rect x="30" y="530" width="1140" height="90" rx="12" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="600" y="555" text-anchor="middle" font-size="13" font-weight="700" fill="#0F172A">Audit Ledger (Merkle Chain)</text>
+  <text x="600" y="570" text-anchor="middle" font-size="10" fill="#64748B">Every operation is an immutable, tamper-evident event. RFC 8785 canonical JSON + SHA-256.</text>
+
+  <!-- Chain events -->
+  <rect x="60" y="582" width="88" height="28" rx="14" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="104" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#1E40AF">genesis</text>
+
+  <line x1="148" y1="596" x2="170" y2="596" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="172" y="582" width="110" height="28" rx="14" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="227" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#1E40AF">manifest.created</text>
+
+  <line x1="282" y1="596" x2="304" y2="596" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="306" y="582" width="110" height="28" rx="14" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="361" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#1E40AF">contract.created</text>
+
+  <line x1="416" y1="596" x2="438" y2="596" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="440" y="582" width="110" height="28" rx="14" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="495" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#1E40AF">session.started</text>
+
+  <line x1="550" y1="596" x2="572" y2="596" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="574" y="582" width="110" height="28" rx="14" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="629" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#166534">sanitize.applied</text>
+
+  <line x1="684" y1="596" x2="706" y2="596" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="708" y="582" width="110" height="28" rx="14" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+  <text x="763" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#166534">scan.passed</text>
+
+  <line x1="818" y1="596" x2="840" y2="596" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="842" y="582" width="120" height="28" rx="14" fill="#FEF3C7" stroke="#FCD34D" stroke-width="1"/>
+  <text x="902" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#92400E">session.complete</text>
+
+  <line x1="962" y1="596" x2="984" y2="596" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="986" y="582" width="120" height="28" rx="14" fill="#FEF3C7" stroke="#FCD34D" stroke-width="1"/>
+  <text x="1046" y="600" text-anchor="middle" font-size="9" font-weight="600" fill="#92400E">result.delivered</text>
+
+  <!-- ============================================= -->
+  <!-- CONFORMANCE LEVELS                            -->
+  <!-- ============================================= -->
+  <rect x="30" y="640" width="1140" height="70" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="55" y="663" font-size="12" font-weight="700" fill="#0F172A">Conformance Levels</text>
+
+  <rect x="55" y="675" width="220" height="26" rx="5" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="165" y="692" text-anchor="middle" font-size="10" font-weight="600" fill="#1E40AF">Core</text>
+  <text x="165" y="700" text-anchor="middle" font-size="8" fill="#64748B">Manifests + Contracts + Results</text>
+
+  <line x1="275" y1="688" x2="297" y2="688" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="299" y="675" width="220" height="26" rx="5" fill="#E0E7FF" stroke="#A5B4FC" stroke-width="1"/>
+  <text x="409" y="692" text-anchor="middle" font-size="10" font-weight="600" fill="#3730A3">Attested</text>
+  <text x="409" y="700" text-anchor="middle" font-size="8" fill="#64748B">+ Hardware attestation (TEE)</text>
+
+  <line x1="519" y1="688" x2="541" y2="688" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="543" y="675" width="220" height="26" rx="5" fill="#FCE7F3" stroke="#F9A8D4" stroke-width="1"/>
+  <text x="653" y="692" text-anchor="middle" font-size="10" font-weight="600" fill="#9D174D">AI-Safe</text>
+  <text x="653" y="700" text-anchor="middle" font-size="8" fill="#64748B">+ NER scanning + Privacy budget</text>
+
+  <line x1="763" y1="688" x2="785" y2="688" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="787" y="675" width="220" height="26" rx="5" fill="#FEF3C7" stroke="#FCD34D" stroke-width="1"/>
+  <text x="897" y="692" text-anchor="middle" font-size="10" font-weight="600" fill="#92400E">Sovereign</text>
+  <text x="897" y="700" text-anchor="middle" font-size="8" fill="#64748B">+ Customer keys + Data residency</text>
+
+  <!-- ============================================= -->
+  <!-- DEFENSE IN DEPTH                              -->
+  <!-- ============================================= -->
+  <rect x="30" y="730" width="1140" height="150" rx="12" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="55" y="755" font-size="12" font-weight="700" fill="#0F172A">9 Security Layers (Defense in Depth)</text>
+
+  <!-- Left column -->
+  <circle cx="70" cy="778" r="10" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="70" y="782" text-anchor="middle" font-size="9" font-weight="700" fill="#1E40AF">1</text>
+  <text x="88" y="782" font-size="10" fill="#1E293B"><tspan font-weight="600">Manifest</tspan>  Metadata only, no content</text>
+
+  <circle cx="70" cy="802" r="10" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="70" y="806" text-anchor="middle" font-size="9" font-weight="700" fill="#1E40AF">2</text>
+  <text x="88" y="806" font-size="10" fill="#1E293B"><tspan font-weight="600">Contract</tspan>  Default-deny, unlisted fields suppressed</text>
+
+  <circle cx="70" cy="826" r="10" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="70" y="830" text-anchor="middle" font-size="9" font-weight="700" fill="#1E40AF">3</text>
+  <text x="88" y="830" font-size="10" fill="#1E293B"><tspan font-weight="600">Sanitizer</tspan>  Strips hidden text, JS, prompt injection</text>
+
+  <circle cx="70" cy="850" r="10" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+  <text x="70" y="854" text-anchor="middle" font-size="9" font-weight="700" fill="#1E40AF">4</text>
+  <text x="88" y="854" font-size="10" fill="#1E293B"><tspan font-weight="600">Enclave</tspan>  Hardware-attested TEE, no host access</text>
+
+  <!-- Middle column -->
+  <circle cx="420" cy="778" r="10" fill="#E0E7FF" stroke="#A5B4FC" stroke-width="1"/>
+  <text x="420" y="782" text-anchor="middle" font-size="9" font-weight="700" fill="#3730A3">5</text>
+  <text x="438" y="782" font-size="10" fill="#1E293B"><tspan font-weight="600">Agent</tspan>  Applies PII redaction from contract</text>
+
+  <circle cx="420" cy="802" r="10" fill="#E0E7FF" stroke="#A5B4FC" stroke-width="1"/>
+  <text x="420" y="806" text-anchor="middle" font-size="9" font-weight="700" fill="#3730A3">6</text>
+  <text x="438" y="806" font-size="10" fill="#1E293B"><tspan font-weight="600">Scanner</tspan>  Independent PII check (regex + NER + stats)</text>
+
+  <circle cx="420" cy="826" r="10" fill="#E0E7FF" stroke="#A5B4FC" stroke-width="1"/>
+  <text x="420" y="830" text-anchor="middle" font-size="9" font-weight="700" fill="#3730A3">7</text>
+  <text x="438" y="830" font-size="10" fill="#1E293B"><tspan font-weight="600">Sidecar</tspan>  Monitors network, memory, DNS</text>
+
+  <!-- Right column -->
+  <circle cx="800" cy="778" r="10" fill="#FCE7F3" stroke="#F9A8D4" stroke-width="1"/>
+  <text x="800" y="782" text-anchor="middle" font-size="9" font-weight="700" fill="#9D174D">8</text>
+  <text x="818" y="782" font-size="10" fill="#1E293B"><tspan font-weight="600">Privacy Budget</tspan>  Limits re-identification risk</text>
+
+  <circle cx="800" cy="802" r="10" fill="#FCE7F3" stroke="#F9A8D4" stroke-width="1"/>
+  <text x="800" y="806" text-anchor="middle" font-size="9" font-weight="700" fill="#9D174D">9</text>
+  <text x="818" y="806" font-size="10" fill="#1E293B"><tspan font-weight="600">Audit Chain</tspan>  Merkle log, tamper-detectable</text>
+
+  <!-- Anti-steg note -->
+  <rect x="800" y="828" width="350" height="38" rx="6" fill="#FEF2F2" stroke="#FECACA" stroke-width="1"/>
+  <text x="815" y="844" font-size="10" font-weight="600" fill="#991B1B">Anti-steganography</text>
+  <text x="815" y="858" font-size="9" fill="#7F1D1D">Numeric precision clamped to prevent encoding secrets</text>
+
+  <!-- Footer -->
+  <text x="600" y="895" text-anchor="middle" font-size="10" fill="#94A3B8">DSP v0.1.3 | Apache 2.0 | github.com/dsp-protocol</text>
+</svg>
+

@@ -1,0 +1,37 @@
+{
+  "description": "PII redaction test vectors — mask_last_4 method",
+  "spec_reference": "DSP v0.1, §4.2",
+  "redaction_method": "mask_last_4",
+  "test_cases": [
+    {
+      "id": "ml4-001",
+      "description": "IBAN masking",
+      "input": "NL91ABNA0417164300",
+      "expected_output": "**************4300"
+    },
+    {
+      "id": "ml4-002",
+      "description": "Account number masking",
+      "input": "0417164300",
+      "expected_output": "******4300"
+    },
+    {
+      "id": "ml4-003",
+      "description": "Short value (exactly 4 characters)",
+      "input": "1234",
+      "expected_output": "1234"
+    },
+    {
+      "id": "ml4-004",
+      "description": "Short value (less than 4 characters)",
+      "input": "123",
+      "expected_output": "123"
+    },
+    {
+      "id": "ml4-005",
+      "description": "Credit card masking",
+      "input": "4111111111111111",
+      "expected_output": "************1111"
+    }
+  ]
+}

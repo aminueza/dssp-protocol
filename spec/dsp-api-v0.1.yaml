@@ -1,0 +1,3333 @@
+openapi: 3.1.0
+info:
+  title: Document Sovereignty Protocol (DSP) API
+  version: "0.1"
+  description: |
+    Wire protocol specification for the Document Sovereignty Protocol (DSP).
+
+    DSP enables document owners to grant scoped, auditable, privacy-preserving access
+    to their documents for AI-powered processing -- without the documents ever leaving
+    the owner's infrastructure unprotected.
+
+    ## Architecture
+
+    ```
+    Consumer <--OAuth2/API Key--> Gateway <--mTLS--> Enclave (owner infra)
+    ```
+
+    - **Consumer**: The organization that wants to process documents (e.g., an audit firm).
+    - **Gateway**: The DSP orchestration layer that mediates between consumers and owner infrastructure.
+    - **Enclave**: A Trusted Execution Environment on the owner's infrastructure where processing occurs.
+
+    ## Protocol Layers
+
+    | Layer | Artifact    | Purpose                                         |
+    |-------|-------------|--------------------------------------------------|
+    | 0     | Storage     | Abstract storage interface (S3, Azure Blob, etc) |
+    | 1     | Manifest    | Describes available documents (no content)        |
+    | 2     | Contract    | Defines permissions, restrictions, attestation    |
+    | 3     | Result      | Structured extraction output with attestation     |
+    | 4     | Audit       | Immutable, tamper-evident event ledger            |
+
+    ## Identifier Format
+
+    All DSP identifiers follow the format `<type-prefix>-<hex>`:
+    - `mf-` for manifests
+    - `ct-` for contracts
+    - `ps-` for sessions
+    - `rs-` for results
+    - `ev-` for events
+    - `doc-` for documents
+    - `ag-` for agents
+
+    ## Timestamps
+
+    All timestamps are ISO 8601 UTC with the `Z` suffix (e.g., `2026-02-27T14:30:00Z`).
+
+    ## Hash Format
+
+    All cryptographic hashes use the object format `{"algorithm": "sha-256", "value": "<hex>"}`.
+  contact:
+    name: DSP Working Group
+    url: https://dsp.dev
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://{gateway_host}/v0.1
+    description: DSP Gateway (consumer-facing)
+    variables:
+      gateway_host:
+        default: api.dsp.example.com
+        description: Gateway hostname
+  - url: https://{enclave_host}/v0.1
+    description: DSP Enclave endpoint (gateway-to-enclave, mTLS only)
+    variables:
+      enclave_host:
+        default: enclave.owner.internal
+        description: Enclave endpoint hostname
+
+tags:
+  - name: Manifests
+    description: |
+      Document manifests describe what documents are available for processing
+      without containing any document content or PII. Manifests are created
+      by document owners and discovered by consumers.
+  - name: Contracts
+    description: |
+      Processing contracts define what a consumer (agent) is allowed to do with
+      documents, what attestation is required, and what privacy restrictions apply.
+      The document owner creates contracts; the consumer must comply with all terms.
+  - name: Sessions
+    description: |
+      Processing sessions represent an active processing job running inside an
+      attested enclave. Sessions are bound to a contract and produce results.
+  - name: Audit
+    description: |
+      Immutable, append-only audit events that record every operation in the DSP
+      lifecycle. Events form a Merkle chain where each event references the hash
+      of the previous event, making the ledger tamper-evident.
+  - name: Storage
+    description: |
+      Storage access operations. The gateway requests scoped, time-limited access
+      tokens on behalf of attested enclaves so they can read documents from
+      owner-controlled storage.
+  - name: Discovery
+    description: |
+      Service discovery and capability negotiation. Returns the DSP configuration
+      for this gateway including supported versions, capabilities, and auth methods.
+
+security:
+  - ApiKeyAuth: []
+  - OAuth2: [dsp:read, dsp:write]
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Manifests
+  # ---------------------------------------------------------------------------
+  /manifests:
+    post:
+      operationId: createManifest
+      tags: [Manifests]
+      summary: Create a document manifest
+      description: |
+        Register a new document manifest describing documents available for processing.
+        The manifest MUST NOT contain document content or PII. It describes document
+        metadata (classification, sensitivity, format, hash) that consumers use to
+        understand what is available and negotiate processing contracts.
+
+        The caller must be the document owner or an authorized delegate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManifestCreate"
+            example:
+              dsp_version: "0.1"
+              owner:
+                org_id: org-acme-corp
+                jurisdiction: EU/NL
+                data_residency: eu-west-1
+              expires_at: "2026-04-15T23:59:59Z"
+              scope:
+                engagement_id: engagement-2026-q1-annual-audit
+                period:
+                  from: "2025-01-01"
+                  to: "2025-12-31"
+                tags:
+                  - annual-audit-2025
+                  - financial-statements
+              documents:
+                - document_id: doc-f47ac10b58cc4372
+                  classification: financial/bank-statement
+                  sensitivity: pii-high
+                  format: application/pdf
+                  page_count: 3
+                  language: en
+                  hash:
+                    algorithm: sha-256
+                    value: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
+                  size_bytes: 245760
+                  pii_fields_declared:
+                    - account_number
+                    - account_holder_name
+                    - balance
+                    - iban
+                  allowed_operations:
+                    - extract_text
+                    - extract_tables
+                    - extract_key_value
+                    - classify_document
+                  denied_operations:
+                    - copy
+                    - download
+                    - thumbnail
+                    - preview
+      responses:
+        "201":
+          description: Manifest created successfully.
+          headers:
+            Location:
+              description: URL of the created manifest.
+              schema:
+                type: string
+                format: uri
+                example: /v0.1/manifests/mf-8a3b2c1d4e5f6789
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Manifest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listManifests
+      tags: [Manifests]
+      summary: List manifests
+      description: |
+        Retrieve a paginated list of manifests visible to the caller. Owners see
+        their own manifests; consumers see manifests shared with them via contracts.
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+        - $ref: "#/components/parameters/CursorParam"
+        - name: owner_org_id
+          in: query
+          description: Filter by owner organization ID.
+          schema:
+            type: string
+            pattern: "^org-[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+            example: org-acme-corp
+        - name: classification
+          in: query
+          description: Filter by document classification present in manifests.
+          schema:
+            type: string
+            example: financial/bank-statement
+        - name: sensitivity_max
+          in: query
+          description: Filter manifests containing documents up to this sensitivity level.
+          schema:
+            $ref: "#/components/schemas/SensitivityLevel"
+        - name: tag
+          in: query
+          description: Filter by scope tag. May be repeated for AND semantics.
+          schema:
+            type: string
+          style: form
+          explode: true
+        - name: created_after
+          in: query
+          description: Return manifests created after this timestamp.
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Return manifests created before this timestamp.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Paginated list of manifests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManifestList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /manifests/{manifest_id}:
+    get:
+      operationId: getManifest
+      tags: [Manifests]
+      summary: Get a manifest by ID
+      description: |
+        Retrieve a single manifest by its identifier. The caller must be the
+        owner of the manifest or a consumer with a contract referencing it.
+      parameters:
+        - $ref: "#/components/parameters/ManifestIdParam"
+      responses:
+        "200":
+          description: Manifest details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Manifest"
+              example:
+                manifest_id: mf-8a3b2c1d4e5f6789
+                dsp_version: "0.1"
+                owner:
+                  org_id: org-acme-corp
+                  jurisdiction: EU/NL
+                  data_residency: eu-west-1
+                created_at: "2026-02-15T10:30:00Z"
+                expires_at: "2026-04-15T23:59:59Z"
+                scope:
+                  engagement_id: engagement-2026-q1-annual-audit
+                  period:
+                    from: "2025-01-01"
+                    to: "2025-12-31"
+                  tags:
+                    - annual-audit-2025
+                    - financial-statements
+                    - bank-confirmations
+                documents: []
+                summary:
+                  total_documents: 3
+                  total_size_bytes: 737280
+                  classifications:
+                    financial/bank-statement: 2
+                    financial/invoice: 1
+                  sensitivity_levels:
+                    pii-high: 2
+                    pii-low: 1
+                  formats:
+                    application/pdf: 3
+                  languages:
+                    en: 2
+                    nl: 1
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ---------------------------------------------------------------------------
+  # Contracts
+  # ---------------------------------------------------------------------------
+  /contracts:
+    post:
+      operationId: createContract
+      tags: [Contracts]
+      summary: Create a processing contract
+      description: |
+        Create a new processing contract that grants a consumer scoped access to
+        documents described by a manifest. The contract defines permitted operations,
+        PII redaction rules, attestation requirements, privacy budgets, and all
+        other restrictions.
+
+        Only the document owner (or authorized delegate) can create contracts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContractCreate"
+            example:
+              dsp_version: "0.1"
+              manifest_id: mf-8a3b2c1d4e5f6789
+              owner:
+                org_id: org-acme-corp
+                jurisdiction: EU/NL
+                data_residency: eu-west-1
+              consumer:
+                org_id: org-docuverify
+                agent_type: ml_structured
+              permissions:
+                operations:
+                  - extract_text
+                  - extract_tables
+                  - extract_key_value
+                document_filter:
+                  classifications:
+                    - financial/bank-statement
+                  sensitivity_max: pii-high
+                max_documents_per_session: 50
+                max_session_duration_seconds: 3600
+                valid_from: "2026-02-15T00:00:00Z"
+                valid_until: "2026-04-15T23:59:59Z"
+              restrictions:
+                network_policy:
+                  egress: deny_all
+                storage_policy: memory_only
+                result_policy:
+                  raw_content_allowed: false
+                  pii_redaction_rules:
+                    account_number: mask_last_4
+                    account_holder_name: hash_sha256
+                    balance: allow
+                result_scanning:
+                  enabled: true
+                  required_scanners:
+                    - regex
+                    - ner
+                  scan_failure_action: block_result
+              attestation_requirements:
+                enclave_types:
+                  - sev-snp
+                  - sgx
+                must_include:
+                  - agent_binary_hash
+                  - input_document_hashes
+                  - output_result_hash
+                  - result_scan_verdict
+      responses:
+        "201":
+          description: Contract created successfully.
+          headers:
+            Location:
+              description: URL of the created contract.
+              schema:
+                type: string
+                format: uri
+                example: /v0.1/contracts/ct-9e8f7d6c5b4a3928
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contract"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listContracts
+      tags: [Contracts]
+      summary: List contracts
+      description: |
+        Retrieve a paginated list of contracts. Owners see contracts they created;
+        consumers see contracts granted to them.
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+        - $ref: "#/components/parameters/CursorParam"
+        - name: manifest_id
+          in: query
+          description: Filter by manifest ID.
+          schema:
+            $ref: "#/components/schemas/Identifier"
+        - name: owner_org_id
+          in: query
+          description: Filter by owner organization ID.
+          schema:
+            type: string
+            pattern: "^org-[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+        - name: consumer_org_id
+          in: query
+          description: Filter by consumer organization ID.
+          schema:
+            type: string
+            pattern: "^org-[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+        - name: status
+          in: query
+          description: Filter by contract status.
+          schema:
+            type: string
+            enum: [active, suspended, revoked, expired]
+        - name: created_after
+          in: query
+          description: Return contracts created after this timestamp.
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Return contracts created before this timestamp.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Paginated list of contracts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContractList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /contracts/{contract_id}:
+    get:
+      operationId: getContract
+      tags: [Contracts]
+      summary: Get a contract by ID
+      description: |
+        Retrieve a single contract by its identifier. Both the owner and the
+        consumer named in the contract may access it.
+      parameters:
+        - $ref: "#/components/parameters/ContractIdParam"
+      responses:
+        "200":
+          description: Contract details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contract"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    patch:
+      operationId: updateContract
+      tags: [Contracts]
+      summary: Update a contract (suspend or revoke)
+      description: |
+        Update the status of a contract. Supported transitions:
+        - `active` -> `suspended` (temporarily halt processing, sessions are paused)
+        - `suspended` -> `active` (resume processing)
+        - `active` -> `revoked` (permanently end the contract, no new sessions)
+        - `suspended` -> `revoked` (permanently end the contract)
+
+        Revocation is permanent and cannot be undone. Only the document owner
+        can modify contract status.
+      parameters:
+        - $ref: "#/components/parameters/ContractIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContractUpdate"
+            examples:
+              suspend:
+                summary: Suspend a contract
+                value:
+                  status: suspended
+                  reason: Temporary hold pending security review
+              revoke:
+                summary: Revoke a contract
+                value:
+                  status: revoked
+                  reason: Engagement concluded, revoking all access
+              reactivate:
+                summary: Reactivate a suspended contract
+                value:
+                  status: active
+                  reason: Security review passed, resuming access
+      responses:
+        "200":
+          description: Contract updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contract"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ---------------------------------------------------------------------------
+  # Sessions
+  # ---------------------------------------------------------------------------
+  /sessions:
+    post:
+      operationId: createSession
+      tags: [Sessions]
+      summary: Start a processing session
+      description: |
+        Start a new processing session under an active contract. The consumer
+        must provide an initial attestation proving the agent is running inside
+        an approved enclave. The gateway validates the attestation against the
+        contract's requirements before granting a session.
+
+        The session is bound to a specific contract and set of document IDs.
+        The agent must send heartbeats (if required by the contract) and
+        complete the session with a result before the session TTL expires.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionCreate"
+            example:
+              contract_id: ct-9e8f7d6c5b4a3928
+              document_ids:
+                - doc-f47ac10b58cc4372
+                - doc-g58bd21c69dd5483
+              agent:
+                org_id: org-docuverify
+                agent_id: ag-dv-extractor-v4
+                agent_type: ml_structured
+                agent_version: "4.2.1"
+                agent_hash:
+                  algorithm: sha-256
+                  value: abc123def456789abc123def456789abc123def456789abc123def456789abcd
+              attestation:
+                enclave_type: sev-snp
+                measurement: "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+                agent_hash:
+                  algorithm: sha-256
+                  value: abc123def456789abc123def456789abc123def456789abc123def456789abcd
+                timestamp: "2026-02-27T14:25:00Z"
+                signed_by: acme-ca
+                signature: TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcmsu
+                platform_certificate_chain:
+                  - LS0tQkVHSU4gQ0VSVElGSUNBVEUtLS0K...
+      responses:
+        "201":
+          description: Session started successfully.
+          headers:
+            Location:
+              description: URL of the created session.
+              schema:
+                type: string
+                format: uri
+                example: /v0.1/sessions/ps-1a2b3c4d5e6f7890
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+              example:
+                session_id: ps-1a2b3c4d5e6f7890
+                contract_id: ct-9e8f7d6c5b4a3928
+                status: active
+                started_at: "2026-02-27T14:25:00Z"
+                expires_at: "2026-02-27T15:25:00Z"
+                heartbeat_interval_seconds: 60
+                document_ids:
+                  - doc-f47ac10b58cc4372
+                  - doc-g58bd21c69dd5483
+                access_token:
+                  token: "dsp_tok_a1b2c3d4..."
+                  expires_at: "2026-02-27T15:25:00Z"
+                  scope:
+                    document_ids:
+                      - doc-f47ac10b58cc4372
+                      - doc-g58bd21c69dd5483
+                    operations:
+                      - extract_text
+                      - extract_tables
+                      - extract_key_value
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            Forbidden. The attestation may have failed verification, or the
+            contract does not permit this consumer, agent, or enclave type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                attestation_failed:
+                  summary: Attestation verification failed
+                  value:
+                    error:
+                      code: attestation_failed
+                      message: "Enclave attestation verification failed: agent_hash does not match contract requirement"
+                      details:
+                        expected_hash: abc123def456789abc123def456789abc123def456789abc123def456789abcd
+                        received_hash: fff000fff000fff000fff000fff000fff000fff000fff000fff000fff000ffff
+                contract_violation:
+                  summary: Contract does not permit this action
+                  value:
+                    error:
+                      code: contract_violation
+                      message: "Contract ct-9e8f7d6c5b4a3928 is suspended"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            Conflict. Maximum concurrent sessions for this contract may be reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: conflict
+                  message: "Maximum concurrent sessions (2) reached for contract ct-9e8f7d6c5b4a3928"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sessions/{session_id}:
+    get:
+      operationId: getSession
+      tags: [Sessions]
+      summary: Get session status
+      description: |
+        Retrieve the current status of a processing session including elapsed
+        time, heartbeat status, and document processing progress.
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      responses:
+        "200":
+          description: Session details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sessions/{session_id}/heartbeat:
+    post:
+      operationId: sessionHeartbeat
+      tags: [Sessions]
+      summary: Send attested heartbeat
+      description: |
+        Send a periodic attested heartbeat to prove the enclave is still running
+        and has not been tampered with. The heartbeat interval is defined in the
+        contract's `runtime_verification.periodic_heartbeat_seconds` field.
+
+        Missing heartbeats trigger session termination. The heartbeat includes
+        a fresh attestation token and optional progress information.
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Heartbeat"
+            example:
+              attestation:
+                enclave_type: sev-snp
+                measurement: "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+                agent_hash:
+                  algorithm: sha-256
+                  value: abc123def456789abc123def456789abc123def456789abc123def456789abcd
+                timestamp: "2026-02-27T14:26:00Z"
+                signed_by: acme-ca
+                signature: aGVhcnRiZWF0IGF0dGVzdGF0aW9u
+              progress:
+                documents_processed: 1
+                documents_total: 2
+                percent_complete: 50
+              metrics:
+                memory_used_bytes: 268435456
+                cpu_seconds: 12.5
+      responses:
+        "200":
+          description: Heartbeat acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeartbeatAck"
+              example:
+                acknowledged: true
+                session_status: active
+                next_heartbeat_deadline: "2026-02-27T14:27:00Z"
+                remaining_seconds: 3540
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            Attestation in the heartbeat failed verification, or the session
+            has already been terminated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: attestation_failed
+                  message: "Heartbeat attestation verification failed: measurement changed since session start"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Session is no longer active (expired, completed, or terminated).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: session_expired
+                  message: "Session ps-1a2b3c4d5e6f7890 has expired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sessions/{session_id}/complete:
+    post:
+      operationId: completeSession
+      tags: [Sessions]
+      summary: Complete session and submit result
+      description: |
+        End the processing session and submit the result envelope. The result
+        must include the full attestation, extractions, PII report, and result
+        scan verdicts.
+
+        The gateway validates the result against the contract's requirements
+        before accepting it. If result scanning is required but was not performed,
+        or if the scan failed and the contract's `scan_failure_action` is
+        `block_result`, the result is rejected.
+
+        This endpoint also accepts the end-of-session attestation that proves the
+        enclave was not tampered with during processing.
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionComplete"
+      responses:
+        "200":
+          description: Session completed and result accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionCompleteResponse"
+              example:
+                session_id: ps-1a2b3c4d5e6f7890
+                status: completed
+                result_id: rs-5c4b3a2f1e0d9c8b
+                result_accepted: true
+                completed_at: "2026-02-27T14:30:02Z"
+                duration_ms: 302000
+        "400":
+          description: |
+            Invalid result. The result envelope may be malformed, missing required
+            fields, or violating contract constraints (e.g., result too large).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_result:
+                  summary: Invalid result envelope
+                  value:
+                    error:
+                      code: invalid_request
+                      message: "Result envelope validation failed: missing required field 'result_scan'"
+                scan_failed:
+                  summary: Result scan failed
+                  value:
+                    error:
+                      code: scan_failed
+                      message: "Result scan failed: NER scanner detected 3 unredacted PII entities"
+                      details:
+                        scanner: presidio-v2.1
+                        findings_count: 3
+                budget_exceeded:
+                  summary: Privacy budget exceeded
+                  value:
+                    error:
+                      code: budget_exceeded
+                      message: "Privacy budget exceeded for contract ct-9e8f7d6c5b4a3928: epsilon 8.2 > max 5.0"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Session is no longer active.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: session_expired
+                  message: "Session ps-1a2b3c4d5e6f7890 has expired"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sessions/{session_id}/result:
+    get:
+      operationId: getSessionResult
+      tags: [Sessions]
+      summary: Retrieve session result
+      description: |
+        Retrieve the result envelope produced by a completed session.
+        The result is only available after the session has been completed
+        successfully. What the caller sees depends on the contract's
+        `gateway_visibility.results` setting:
+        - `full`: complete result envelope
+        - `metadata_only`: attestation + PII report, no extraction fields
+        - `verdict_only`: only pass/fail status
+        - `none`: 403 Forbidden (result never leaves owner infrastructure)
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      responses:
+        "200":
+          description: Result envelope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Session not found or result not yet available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: not_found
+                  message: "Result for session ps-1a2b3c4d5e6f7890 is not yet available"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ---------------------------------------------------------------------------
+  # Audit
+  # ---------------------------------------------------------------------------
+  /audit/events:
+    post:
+      operationId: appendAuditEvent
+      tags: [Audit]
+      summary: Append an audit event
+      description: |
+        Append a new event to the audit ledger. Events form a Merkle chain --
+        each event references the hash of the previous event. The gateway
+        validates chain integrity before accepting a new event.
+
+        This endpoint is typically called by the gateway itself, enclaves, or
+        owner-side infrastructure. It is not normally called directly by
+        consumers.
+      security:
+        - ApiKeyAuth: []
+        - OAuth2: [dsp:audit:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditEventCreate"
+            example:
+              dsp_version: "0.1"
+              event_type: session.started
+              actor:
+                type: agent
+                org_id: org-docuverify
+                agent_id: ag-dv-extractor-v4
+              subject:
+                type: session
+                session_id: ps-1a2b3c4d5e6f7890
+                contract_id: ct-9e8f7d6c5b4a3928
+              action:
+                contract_id: ct-9e8f7d6c5b4a3928
+                contract_version: 1
+                reason: "Processing session started for bank statement extraction"
+              outcome:
+                status: success
+      responses:
+        "201":
+          description: Audit event appended to the ledger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEvent"
+        "400":
+          description: |
+            Invalid event. Chain integrity violation (previous_event_hash mismatch),
+            invalid event_type, or missing required fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: invalid_request
+                  message: "Chain integrity violation: previous_event_hash does not match the latest event"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Duplicate event ID or sequence number conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: conflict
+                  message: "Event with sequence_number 42 already exists"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listAuditEvents
+      tags: [Audit]
+      summary: Read audit event chain
+      description: |
+        Retrieve a paginated list of audit events. Events are returned in
+        chronological order (oldest first by default). Supports filtering by
+        event type, time range, and associated entities.
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+        - $ref: "#/components/parameters/CursorParam"
+        - name: since
+          in: query
+          description: Return events with timestamp strictly after this value.
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          description: Return events with timestamp on or before this value.
+          schema:
+            type: string
+            format: date-time
+        - name: event_type
+          in: query
+          description: Filter by event type. May be repeated for OR semantics.
+          schema:
+            type: string
+          style: form
+          explode: true
+          examples:
+            single:
+              value: session.completed
+            multiple:
+              value: violation.detected
+        - name: contract_id
+          in: query
+          description: Filter events related to a specific contract.
+          schema:
+            $ref: "#/components/schemas/Identifier"
+        - name: session_id
+          in: query
+          description: Filter events related to a specific session.
+          schema:
+            $ref: "#/components/schemas/Identifier"
+        - name: manifest_id
+          in: query
+          description: Filter events related to a specific manifest.
+          schema:
+            $ref: "#/components/schemas/Identifier"
+        - name: actor_org_id
+          in: query
+          description: Filter by actor organization.
+          schema:
+            type: string
+            pattern: "^org-[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+        - name: outcome_status
+          in: query
+          description: Filter by outcome status.
+          schema:
+            type: string
+            enum: [success, failure, partial, denied]
+        - name: order
+          in: query
+          description: Sort order for events.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Paginated list of audit events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ---------------------------------------------------------------------------
+  # Storage
+  # ---------------------------------------------------------------------------
+  /storage/grant-access:
+    post:
+      operationId: grantStorageAccess
+      tags: [Storage]
+      summary: Request scoped storage access token
+      description: |
+        Request a scoped, time-limited access token that allows an attested
+        enclave to read documents directly from owner-controlled storage.
+
+        The gateway validates:
+        1. The session is active and the contract permits the requested operations.
+        2. The requested document IDs are covered by the contract's document filter.
+        3. The attestation in the request matches the session's enclave.
+
+        The returned token is opaque and can only be used by the enclave that
+        requested it. The token grants access to specific documents for specific
+        operations for a limited duration.
+      security:
+        - ApiKeyAuth: []
+        - OAuth2: [dsp:storage:access]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageAccessRequest"
+            example:
+              session_id: ps-1a2b3c4d5e6f7890
+              contract_id: ct-9e8f7d6c5b4a3928
+              document_ids:
+                - doc-f47ac10b58cc4372
+                - doc-g58bd21c69dd5483
+              operations:
+                - extract_text
+                - extract_tables
+                - extract_key_value
+              ttl_seconds: 3600
+              attestation:
+                enclave_type: sev-snp
+                measurement: "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+                agent_hash:
+                  algorithm: sha-256
+                  value: abc123def456789abc123def456789abc123def456789abc123def456789abcd
+                timestamp: "2026-02-27T14:25:05Z"
+                signed_by: acme-ca
+                signature: c3RvcmFnZSBhY2Nlc3MgYXR0ZXN0YXRpb24=
+      responses:
+        "200":
+          description: Storage access token issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScopedToken"
+              example:
+                token: "dsp_stok_x9y8z7w6v5u4t3..."
+                expires_at: "2026-02-27T15:25:05Z"
+                scope:
+                  document_ids:
+                    - doc-f47ac10b58cc4372
+                    - doc-g58bd21c69dd5483
+                  operations:
+                    - extract_text
+                    - extract_tables
+                    - extract_key_value
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            Attestation failed, contract does not permit the requested access,
+            or the requested documents are outside the contract scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                attestation_failed:
+                  value:
+                    error:
+                      code: attestation_failed
+                      message: "Storage access denied: enclave attestation does not match session"
+                contract_violation:
+                  value:
+                    error:
+                      code: contract_violation
+                      message: "Document doc-h69ce32d7aee6594 is not permitted by contract filter"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ---------------------------------------------------------------------------
+  # Discovery
+  # ---------------------------------------------------------------------------
+  /.well-known/dsp-configuration:
+    get:
+      operationId: getConfiguration
+      tags: [Discovery]
+      summary: DSP service discovery
+      description: |
+        Returns the DSP configuration for this gateway including protocol version,
+        API version, available endpoints, supported capabilities, authentication
+        methods, and conformance level.
+
+        This endpoint does not require authentication and is intended for
+        service discovery and capability negotiation.
+      security: []
+      responses:
+        "200":
+          description: DSP configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DSPConfiguration"
+              example:
+                dsp_version: "0.1"
+                api_version: v0.1
+                gateway_id: gw-acme-prod-01
+                endpoints:
+                  manifests: /v0.1/manifests
+                  contracts: /v0.1/contracts
+                  sessions: /v0.1/sessions
+                  audit: /v0.1/audit/events
+                  storage: /v0.1/storage
+                capabilities:
+                  - manifests
+                  - contracts
+                  - sessions
+                  - audit
+                  - storage
+                  - result_scanning
+                  - attestation
+                auth_methods:
+                  - api_key
+                  - oauth2
+                  - mtls
+                conformance_level: attested
+                supported_enclave_types:
+                  - sev-snp
+                  - sgx
+                  - tdx
+                  - nitro
+                contact:
+                  name: DSP Gateway Operations
+                  url: https://support.dsp.example.com
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+# =============================================================================
+# Components
+# =============================================================================
+components:
+
+  # ---------------------------------------------------------------------------
+  # Security Schemes
+  # ---------------------------------------------------------------------------
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-DSP-API-Key
+      description: |
+        API key for consumer-to-gateway authentication. Issued by the gateway
+        operator to authorized consumers. Include in the `X-DSP-API-Key` header.
+
+    OAuth2:
+      type: oauth2
+      description: |
+        OAuth 2.0 client credentials flow for consumer-to-gateway authentication.
+        Consumers obtain an access token using their client credentials and
+        include it as a Bearer token.
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.dsp.example.com/oauth2/token
+          scopes:
+            dsp:read: Read access to manifests, contracts, sessions, and audit events.
+            dsp:write: Write access to create manifests, contracts, and sessions.
+            dsp:audit:write: Write access to append audit events.
+            dsp:storage:access: Request storage access tokens.
+
+  # ---------------------------------------------------------------------------
+  # Parameters
+  # ---------------------------------------------------------------------------
+  parameters:
+    ManifestIdParam:
+      name: manifest_id
+      in: path
+      required: true
+      description: Manifest identifier (prefix `mf-`).
+      schema:
+        $ref: "#/components/schemas/Identifier"
+      example: mf-8a3b2c1d4e5f6789
+
+    ContractIdParam:
+      name: contract_id
+      in: path
+      required: true
+      description: Contract identifier (prefix `ct-`).
+      schema:
+        $ref: "#/components/schemas/Identifier"
+      example: ct-9e8f7d6c5b4a3928
+
+    SessionIdParam:
+      name: session_id
+      in: path
+      required: true
+      description: Session identifier (prefix `ps-`).
+      schema:
+        $ref: "#/components/schemas/Identifier"
+      example: ps-1a2b3c4d5e6f7890
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Maximum number of items to return per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 50
+
+    OffsetParam:
+      name: offset
+      in: query
+      description: |
+        Number of items to skip (offset-based pagination). Mutually exclusive
+        with `cursor`.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+    CursorParam:
+      name: cursor
+      in: query
+      description: |
+        Opaque cursor for cursor-based pagination. Obtained from the `next_cursor`
+        field of a previous response. Mutually exclusive with `offset`.
+      schema:
+        type: string
+
+  # ---------------------------------------------------------------------------
+  # Responses
+  # ---------------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: The request is malformed or contains invalid parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: invalid_request
+              message: "Validation failed: 'dsp_version' is required"
+
+    Unauthorized:
+      description: Authentication is missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: unauthorized
+              message: "Missing or invalid authentication credentials"
+
+    Forbidden:
+      description: The caller does not have permission to perform this action.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: forbidden
+              message: "You do not have permission to access this resource"
+
+    NotFound:
+      description: The requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: not_found
+              message: "Resource not found"
+
+    Conflict:
+      description: The request conflicts with the current state of the resource.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: conflict
+              message: "Resource already exists or state transition is invalid"
+
+    RateLimited:
+      description: Too many requests. The caller should back off and retry.
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying.
+          schema:
+            type: integer
+            example: 30
+        X-RateLimit-Limit:
+          description: Maximum requests per window.
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          description: Remaining requests in current window.
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          description: Unix timestamp when the rate limit resets.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: rate_limited
+              message: "Rate limit exceeded. Retry after 30 seconds."
+
+    InternalError:
+      description: An unexpected internal error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: internal_error
+              message: "An unexpected error occurred. Please retry or contact support."
+
+  # ---------------------------------------------------------------------------
+  # Schemas
+  # ---------------------------------------------------------------------------
+  schemas:
+
+    # ---- Shared / Common Types ----
+
+    Identifier:
+      type: string
+      pattern: "^[a-z]{2,4}-[a-f0-9]{8,64}$"
+      description: |
+        DSP identifier format: `<type-prefix>-<hex>`.
+        Prefixes: mf (manifest), doc (document), ct (contract), rs (result),
+        ev (event), ps (session), ag (agent).
+      examples:
+        - mf-8a3b2c1d4e5f6789
+        - ct-9e8f7d6c5b4a3928
+        - ps-1a2b3c4d5e6f7890
+
+    HashDigest:
+      type: object
+      required: [algorithm, value]
+      additionalProperties: false
+      description: Cryptographic hash with algorithm identifier.
+      properties:
+        algorithm:
+          type: string
+          enum: [sha-256, sha-384, sha-512, blake3]
+          description: Hash algorithm. SHA-256 is the required baseline.
+        value:
+          type: string
+          pattern: "^[a-f0-9]{64,128}$"
+          description: Hex-encoded hash value.
+      example:
+        algorithm: sha-256
+        value: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
+
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 timestamp in UTC. MUST include timezone designator 'Z'.
+      example: "2026-02-27T14:30:00Z"
+
+    OrgIdentifier:
+      type: string
+      pattern: "^org-[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+      description: Organization identifier. Lowercase alphanumeric with hyphens, prefixed with 'org-'.
+      example: org-acme-corp
+
+    SensitivityLevel:
+      type: string
+      enum: [public, internal, confidential, pii-low, pii-high, pii-critical]
+      description: Document sensitivity classification.
+
+    Operation:
+      type: string
+      enum:
+        - extract_text
+        - extract_tables
+        - extract_key_value
+        - classify_document
+        - detect_language
+        - verify_signature
+        - compare_documents
+        - compute_checksum
+        - count_pages
+        - extract_metadata
+        - ocr_structured
+        - ocr_full_page
+        - copy
+        - download
+        - thumbnail
+        - preview
+      description: |
+        Operations that a processor can request. `copy`, `download`,
+        `thumbnail`, and `preview` are considered high-risk and SHOULD
+        be denied by default.
+
+    OwnerInfo:
+      type: object
+      required: [org_id]
+      additionalProperties: false
+      description: Document owner information.
+      properties:
+        org_id:
+          $ref: "#/components/schemas/OrgIdentifier"
+        jurisdiction:
+          type: string
+          description: |
+            ISO 3166-1 alpha-2 country code, optionally with subdivision
+            (e.g., 'US', 'EU/NL', 'BR/SP'). Controls data residency rules.
+          examples: ["US", "EU", "EU/NL"]
+        data_residency:
+          type: string
+          description: |
+            Opaque identifier for where documents physically reside.
+            Examples: 'eu-west-1', 'on-prem-dc2'.
+
+    AgentInfo:
+      type: object
+      required: [org_id, agent_id, agent_type]
+      additionalProperties: false
+      description: Processing agent information.
+      properties:
+        org_id:
+          $ref: "#/components/schemas/OrgIdentifier"
+        agent_id:
+          $ref: "#/components/schemas/Identifier"
+        agent_hash:
+          $ref: "#/components/schemas/HashDigest"
+        agent_version:
+          type: string
+          description: Semantic version of the agent.
+        agent_type:
+          type: string
+          enum: [deterministic, ml_structured, llm_freeform]
+          description: |
+            Agent processing model.
+            - `deterministic`: rule-based extraction (regex, template matching).
+            - `ml_structured`: ML model that produces typed fields/tables only.
+            - `llm_freeform`: LLM that may produce free-text output.
+            Each type triggers different PII scanning requirements.
+
+    AttestationToken:
+      type: object
+      required: [enclave_type, measurement, timestamp, signature]
+      additionalProperties: false
+      description: Cryptographic attestation proof from a Trusted Execution Environment.
+      properties:
+        enclave_type:
+          type: string
+          enum: [sgx, sev-snp, tdx, nitro, cca]
+          description: TEE type.
+        measurement:
+          type: string
+          description: Platform-specific enclave measurement (MRENCLAVE for SGX, launch digest for SEV-SNP, etc.).
+        agent_hash:
+          $ref: "#/components/schemas/HashDigest"
+        timestamp:
+          $ref: "#/components/schemas/Timestamp"
+        signed_by:
+          type: string
+          description: Identifier of the signing authority.
+        signature:
+          type: string
+          contentEncoding: base64
+          description: Base64-encoded signature over the attestation claims.
+        platform_certificate_chain:
+          type: array
+          items:
+            type: string
+            contentEncoding: base64
+          description: Certificate chain for verifying the attestation up to a trusted root.
+
+    ScopedToken:
+      type: object
+      required: [token, expires_at, scope]
+      additionalProperties: false
+      description: |
+        Scoped, time-limited access token for enclave-to-storage access.
+        MUST NOT contain document content or PII.
+      properties:
+        token:
+          type: string
+          description: Opaque access token.
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        scope:
+          type: object
+          required: [document_ids, operations]
+          properties:
+            document_ids:
+              type: array
+              items:
+                $ref: "#/components/schemas/Identifier"
+              description: Documents this token grants access to.
+            operations:
+              type: array
+              items:
+                $ref: "#/components/schemas/Operation"
+              description: Operations permitted with this token.
+
+    Pagination:
+      type: object
+      description: Pagination metadata returned with list responses.
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of items matching the query.
+        limit:
+          type: integer
+          description: Maximum items per page (as requested).
+        offset:
+          type: integer
+          description: Current offset (for offset-based pagination).
+        next_cursor:
+          type: string
+          nullable: true
+          description: |
+            Cursor for the next page. Null if this is the last page.
+            Pass as the `cursor` query parameter to fetch the next page.
+        has_more:
+          type: boolean
+          description: Whether more items exist beyond this page.
+
+    # ---- Error Types ----
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      description: Standard error response envelope.
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_request
+                - not_found
+                - contract_violation
+                - attestation_failed
+                - session_expired
+                - budget_exceeded
+                - scan_failed
+                - unauthorized
+                - forbidden
+                - conflict
+                - rate_limited
+                - internal_error
+              description: Machine-readable error code.
+            message:
+              type: string
+              description: Human-readable error description. MUST NOT contain PII or document content.
+            details:
+              type: object
+              additionalProperties: true
+              description: |
+                Additional machine-readable details about the error. Structure
+                varies by error code.
+
+    # ---- Manifest Types ----
+
+    DocumentEntry:
+      type: object
+      required: [document_id, classification, sensitivity, format, hash]
+      additionalProperties: false
+      description: A single document described in a manifest. Contains metadata only, never content.
+      properties:
+        document_id:
+          $ref: "#/components/schemas/Identifier"
+        classification:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$"
+          description: |
+            Hierarchical document type: `<category>/<type>`.
+          examples:
+            - financial/bank-statement
+            - financial/invoice
+            - legal/contract
+            - healthcare/claim
+        sensitivity:
+          $ref: "#/components/schemas/SensitivityLevel"
+        format:
+          type: string
+          description: MIME type of the document.
+          examples:
+            - application/pdf
+            - image/png
+            - text/csv
+        page_count:
+          type: integer
+          minimum: 0
+          description: Number of pages. 0 for non-paginated formats.
+        language:
+          type: string
+          pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+          description: ISO 639-1 language code, optionally with country.
+          examples: ["en", "en-US", "nl", "pt-BR"]
+        hash:
+          $ref: "#/components/schemas/HashDigest"
+        size_bytes:
+          type: integer
+          minimum: 0
+          description: Document size in bytes.
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        pii_fields_declared:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+          description: PII field types present in this document. MUST NOT contain actual PII values.
+        allowed_operations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Operation"
+          uniqueItems: true
+          description: Operations the owner permits on this document.
+        denied_operations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Operation"
+          uniqueItems: true
+          description: Operations explicitly forbidden. Takes precedence over allowed_operations.
+        tags:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+          description: Document-level tags. MUST NOT contain PII.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Custom key-value metadata. MUST NOT contain PII.
+
+    ManifestSummary:
+      type: object
+      description: Aggregated statistics about documents in a manifest.
+      properties:
+        total_documents:
+          type: integer
+          minimum: 0
+        total_size_bytes:
+          type: integer
+          minimum: 0
+        classifications:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count of documents per classification.
+        sensitivity_levels:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count of documents per sensitivity level.
+        formats:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count of documents per MIME type.
+        languages:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Count of documents per language.
+
+    ManifestCreate:
+      type: object
+      required: [dsp_version, owner, documents]
+      description: Request body for creating a new manifest.
+      properties:
+        dsp_version:
+          type: string
+          const: "0.1"
+          description: DSP protocol version.
+        owner:
+          $ref: "#/components/schemas/OwnerInfo"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        scope:
+          type: object
+          properties:
+            engagement_id:
+              type: string
+              description: Engagement or project identifier.
+            period:
+              type: object
+              properties:
+                from:
+                  type: string
+                  format: date
+                to:
+                  type: string
+                  format: date
+            tags:
+              type: array
+              items:
+                type: string
+              uniqueItems: true
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentEntry"
+          description: Documents to include in the manifest.
+        summary:
+          $ref: "#/components/schemas/ManifestSummary"
+
+    Manifest:
+      type: object
+      required: [manifest_id, dsp_version, owner, created_at, documents]
+      description: A document manifest describing available documents.
+      properties:
+        manifest_id:
+          $ref: "#/components/schemas/Identifier"
+        dsp_version:
+          type: string
+          const: "0.1"
+        owner:
+          $ref: "#/components/schemas/OwnerInfo"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        scope:
+          type: object
+          properties:
+            engagement_id:
+              type: string
+            period:
+              type: object
+              properties:
+                from:
+                  type: string
+                  format: date
+                to:
+                  type: string
+                  format: date
+            tags:
+              type: array
+              items:
+                type: string
+              uniqueItems: true
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentEntry"
+        summary:
+          $ref: "#/components/schemas/ManifestSummary"
+
+    ManifestList:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Manifest"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # ---- Contract Types ----
+
+    ContractCreate:
+      type: object
+      required: [dsp_version, manifest_id, owner, consumer, permissions, restrictions, attestation_requirements]
+      description: Request body for creating a new processing contract.
+      properties:
+        dsp_version:
+          type: string
+          const: "0.1"
+        manifest_id:
+          $ref: "#/components/schemas/Identifier"
+        owner:
+          $ref: "#/components/schemas/OwnerInfo"
+        consumer:
+          $ref: "#/components/schemas/ContractConsumer"
+        permissions:
+          $ref: "#/components/schemas/ContractPermissions"
+        restrictions:
+          $ref: "#/components/schemas/ContractRestrictions"
+        attestation_requirements:
+          $ref: "#/components/schemas/AttestationRequirements"
+
+    ContractUpdate:
+      type: object
+      required: [status]
+      description: Request body for updating a contract status.
+      properties:
+        status:
+          type: string
+          enum: [active, suspended, revoked]
+          description: |
+            New contract status. Valid transitions:
+            - `active` -> `suspended`
+            - `active` -> `revoked`
+            - `suspended` -> `active`
+            - `suspended` -> `revoked`
+        reason:
+          type: string
+          maxLength: 1000
+          description: Human-readable reason for the status change. Logged to the audit trail.
+
+    ContractConsumer:
+      type: object
+      required: [org_id]
+      additionalProperties: false
+      description: Consumer (processor) information in a contract.
+      properties:
+        org_id:
+          $ref: "#/components/schemas/OrgIdentifier"
+        agent_id:
+          $ref: "#/components/schemas/Identifier"
+        agent_hash:
+          $ref: "#/components/schemas/HashDigest"
+        agent_versions_allowed:
+          type: array
+          items:
+            type: string
+          description: Semantic version constraints (e.g., '>=2.0.0', '<5.0.0').
+        agent_type:
+          type: string
+          enum: [deterministic, ml_structured, llm_freeform]
+          description: Agent processing model. Determines PII scanning requirements.
+        sub_agent_policy:
+          $ref: "#/components/schemas/SubAgentPolicy"
+
+    SubAgentPolicy:
+      type: object
+      description: Controls multi-model composition in processing pipelines.
+      properties:
+        allowed:
+          type: boolean
+          default: true
+          description: If false, the agent MUST NOT delegate to sub-models.
+        max_pipeline_steps:
+          type: integer
+          minimum: 1
+          description: Maximum number of pipeline steps.
+        allowed_purposes:
+          type: array
+          items:
+            type: string
+            enum: [ocr, layout_detection, table_extraction, classification, key_value_extraction, summarization, translation, validation, custom]
+        require_sub_agent_hashes:
+          type: boolean
+          default: true
+        approved_sub_agent_hashes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HashDigest"
+        cross_enclave_allowed:
+          type: boolean
+          default: false
+        llm_sub_agent_allowed:
+          type: boolean
+          default: false
+
+    ContractPermissions:
+      type: object
+      required: [operations]
+      additionalProperties: false
+      description: What the consumer is permitted to do under this contract.
+      properties:
+        operations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Operation"
+          minItems: 1
+          uniqueItems: true
+        document_filter:
+          type: object
+          description: Limits which documents the consumer can access.
+          properties:
+            classifications:
+              type: array
+              items:
+                type: string
+            sensitivity_max:
+              $ref: "#/components/schemas/SensitivityLevel"
+            tags_required:
+              type: array
+              items:
+                type: string
+            tags_any:
+              type: array
+              items:
+                type: string
+            document_ids:
+              type: array
+              items:
+                $ref: "#/components/schemas/Identifier"
+        max_documents_per_session:
+          type: integer
+          minimum: 1
+        max_concurrent_sessions:
+          type: integer
+          minimum: 1
+          default: 1
+        max_session_duration_seconds:
+          type: integer
+          minimum: 60
+        valid_from:
+          $ref: "#/components/schemas/Timestamp"
+        valid_until:
+          $ref: "#/components/schemas/Timestamp"
+
+    ContractRestrictions:
+      type: object
+      required: [network_policy, storage_policy, result_policy, result_scanning]
+      additionalProperties: false
+      description: Security and privacy restrictions for processing.
+      properties:
+        network_policy:
+          type: object
+          required: [egress]
+          properties:
+            egress:
+              type: string
+              enum: [deny_all, allow_listed]
+            allowed_destinations:
+              type: array
+              items:
+                type: object
+                required: [host, port, purpose]
+                properties:
+                  host:
+                    type: string
+                  port:
+                    type: integer
+                    minimum: 1
+                    maximum: 65535
+                  purpose:
+                    type: string
+                    enum: [result_delivery, attestation_service, logging]
+        storage_policy:
+          type: string
+          enum: [memory_only, encrypted_ephemeral, encrypted_persistent]
+        result_policy:
+          type: object
+          required: [pii_redaction_rules]
+          properties:
+            raw_content_allowed:
+              type: boolean
+              default: false
+            max_result_size_bytes:
+              type: integer
+              minimum: 1
+            pii_redaction_rules:
+              type: object
+              additionalProperties:
+                type: string
+                enum: [allow, mask_last_4, mask_first_6, mask_all, hash_sha256, hash_blake3, round_thousands, round_millions, range_bucket, suppress, tokenize, k_anonymize]
+              description: Map of PII field type to redaction method.
+            custom_redaction_patterns:
+              type: array
+              items:
+                type: object
+                required: [pattern, method, description]
+                properties:
+                  pattern:
+                    type: string
+                  method:
+                    type: string
+                    enum: [allow, mask_last_4, mask_first_6, mask_all, hash_sha256, hash_blake3, round_thousands, round_millions, range_bucket, suppress, tokenize, k_anonymize]
+                  description:
+                    type: string
+            free_text_fields_policy:
+              type: string
+              enum: [deny, scan_and_redact, allow_with_warning]
+              default: deny
+            max_string_field_length:
+              type: integer
+              minimum: 1
+              default: 200
+            numeric_precision_policy:
+              type: object
+              properties:
+                max_decimal_places:
+                  type: integer
+                  minimum: 0
+                  default: 2
+                max_significant_digits:
+                  type: integer
+                  minimum: 1
+                enforce_standard_rounding:
+                  type: boolean
+                  default: true
+                detect_entropy_anomaly:
+                  type: boolean
+                  default: false
+                currency_fields_integer_cents:
+                  type: boolean
+                  default: false
+        result_scanning:
+          type: object
+          required: [enabled]
+          properties:
+            enabled:
+              type: boolean
+            required_scanners:
+              type: array
+              items:
+                type: string
+                enum: [regex, ner, llm_output_filter, statistical]
+              minItems: 1
+            ner_model_requirements:
+              type: object
+              properties:
+                min_entity_types:
+                  type: array
+                  items:
+                    type: string
+                min_confidence_threshold:
+                  type: number
+                  minimum: 0.0
+                  maximum: 1.0
+                  default: 0.7
+                approved_scanner_hashes:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/HashDigest"
+                languages:
+                  type: array
+                  items:
+                    type: string
+            scan_failure_action:
+              type: string
+              enum: [block_result, flag_and_deliver, quarantine]
+              default: block_result
+        document_sanitization:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            strip_hidden_text:
+              type: boolean
+              default: true
+            strip_javascript:
+              type: boolean
+              default: true
+            strip_embedded_files:
+              type: boolean
+              default: true
+            normalize_unicode:
+              type: boolean
+              default: true
+            injection_pattern_detection:
+              type: boolean
+              default: true
+            max_text_length_per_page:
+              type: integer
+              minimum: 1
+            sanitizer_hash:
+              $ref: "#/components/schemas/HashDigest"
+        privacy_budget:
+          type: object
+          properties:
+            epsilon:
+              type: number
+              minimum: 0.0
+            delta:
+              type: number
+              minimum: 0.0
+              maximum: 1.0
+            k_anonymity_min:
+              type: integer
+              minimum: 2
+            max_unique_values_per_field:
+              type: integer
+              minimum: 1
+            aggregation_minimum_records:
+              type: integer
+              minimum: 1
+            budget_window:
+              type: string
+              enum: [per_session, per_day, per_contract, lifetime]
+            budget_consumed:
+              type: number
+              minimum: 0.0
+              readOnly: true
+        gateway_visibility:
+          type: object
+          properties:
+            manifests:
+              type: string
+              enum: [full, summary_only, none]
+            results:
+              type: string
+              enum: [full, metadata_only, verdict_only, none]
+            audit_events:
+              type: string
+              enum: [full, summary_only, none]
+            cross_engagement_correlation:
+              type: boolean
+              default: false
+
+    AttestationRequirements:
+      type: object
+      required: [enclave_types, must_include]
+      additionalProperties: false
+      description: Attestation and runtime verification requirements.
+      properties:
+        enclave_types:
+          type: array
+          items:
+            type: string
+            enum: [sgx, sev-snp, tdx, nitro, cca]
+          minItems: 1
+          description: Accepted enclave types.
+        measurement_authorities:
+          type: array
+          items:
+            type: string
+          description: Trusted measurement signing authorities.
+        must_include:
+          type: array
+          items:
+            type: string
+            enum:
+              - agent_binary_hash
+              - input_document_hashes
+              - output_result_hash
+              - processing_duration
+              - network_connections_log
+              - memory_usage_peak
+              - memory_sealed_proof
+              - cpu_instruction_count
+              - entropy_source_proof
+              - result_scan_verdict
+              - sanitizer_execution_proof
+              - end_of_session_measurement
+              - sub_agent_chain_declaration
+          minItems: 1
+          uniqueItems: true
+          description: Claims that MUST be present in the attestation report.
+        attestation_freshness_seconds:
+          type: integer
+          minimum: 1
+          default: 300
+        runtime_verification:
+          type: object
+          properties:
+            end_of_session_attestation:
+              type: boolean
+              default: true
+            periodic_heartbeat_seconds:
+              type: integer
+              minimum: 10
+            sidecar_verifier:
+              type: object
+              properties:
+                required:
+                  type: boolean
+                  default: false
+                verifier_hash:
+                  $ref: "#/components/schemas/HashDigest"
+                monitors:
+                  type: array
+                  items:
+                    type: string
+                    enum: [network_io, file_io, memory_allocation, syscalls, dns_queries]
+            memory_snapshot_on_exit:
+              type: boolean
+              default: false
+
+    Contract:
+      type: object
+      required: [contract_id, dsp_version, version, owner, consumer, permissions, restrictions, attestation_requirements, created_at]
+      description: A processing contract defining all terms for document access.
+      properties:
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        dsp_version:
+          type: string
+          const: "0.1"
+        version:
+          type: integer
+          minimum: 1
+          description: Contract version. Incremented on updates.
+        status:
+          type: string
+          enum: [active, suspended, revoked, expired]
+          default: active
+        manifest_id:
+          $ref: "#/components/schemas/Identifier"
+        owner:
+          $ref: "#/components/schemas/OwnerInfo"
+        consumer:
+          $ref: "#/components/schemas/ContractConsumer"
+        permissions:
+          $ref: "#/components/schemas/ContractPermissions"
+        restrictions:
+          $ref: "#/components/schemas/ContractRestrictions"
+        attestation_requirements:
+          $ref: "#/components/schemas/AttestationRequirements"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+        revoked_at:
+          $ref: "#/components/schemas/Timestamp"
+        revocation_reason:
+          type: string
+
+    ContractList:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Contract"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # ---- Session Types ----
+
+    SessionCreate:
+      type: object
+      required: [contract_id, document_ids, agent, attestation]
+      description: Request body for starting a new processing session.
+      properties:
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        document_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identifier"
+          minItems: 1
+          description: Documents to process in this session.
+        agent:
+          $ref: "#/components/schemas/AgentInfo"
+        attestation:
+          $ref: "#/components/schemas/AttestationToken"
+
+    Session:
+      type: object
+      required: [session_id, contract_id, status, started_at]
+      description: A processing session running inside an attested enclave.
+      properties:
+        session_id:
+          $ref: "#/components/schemas/Identifier"
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        status:
+          type: string
+          enum: [active, completed, failed, terminated, expired]
+          description: |
+            Session lifecycle status:
+            - `active`: session is running.
+            - `completed`: session finished normally with a result.
+            - `failed`: session encountered a fatal error.
+            - `terminated`: session was forcibly ended (violation, manual).
+            - `expired`: session exceeded its TTL.
+        started_at:
+          $ref: "#/components/schemas/Timestamp"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        completed_at:
+          $ref: "#/components/schemas/Timestamp"
+        heartbeat_interval_seconds:
+          type: integer
+          minimum: 10
+          description: Required interval between heartbeats, if applicable.
+        last_heartbeat_at:
+          $ref: "#/components/schemas/Timestamp"
+        document_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identifier"
+        result_id:
+          $ref: "#/components/schemas/Identifier"
+        access_token:
+          $ref: "#/components/schemas/ScopedToken"
+        progress:
+          type: object
+          properties:
+            documents_processed:
+              type: integer
+              minimum: 0
+            documents_total:
+              type: integer
+              minimum: 0
+            percent_complete:
+              type: integer
+              minimum: 0
+              maximum: 100
+
+    Heartbeat:
+      type: object
+      required: [attestation]
+      description: Attested heartbeat sent during an active session.
+      properties:
+        attestation:
+          $ref: "#/components/schemas/AttestationToken"
+        progress:
+          type: object
+          properties:
+            documents_processed:
+              type: integer
+              minimum: 0
+            documents_total:
+              type: integer
+              minimum: 0
+            percent_complete:
+              type: integer
+              minimum: 0
+              maximum: 100
+        metrics:
+          type: object
+          description: Optional runtime metrics from the enclave.
+          properties:
+            memory_used_bytes:
+              type: integer
+              minimum: 0
+            cpu_seconds:
+              type: number
+              minimum: 0.0
+            network_egress_bytes:
+              type: integer
+              minimum: 0
+
+    HeartbeatAck:
+      type: object
+      required: [acknowledged, session_status]
+      description: Gateway acknowledgment of a heartbeat.
+      properties:
+        acknowledged:
+          type: boolean
+          description: Whether the heartbeat was accepted.
+        session_status:
+          type: string
+          enum: [active, terminated]
+          description: |
+            Current session status. If `terminated`, the agent MUST stop
+            processing immediately and clean up.
+        next_heartbeat_deadline:
+          $ref: "#/components/schemas/Timestamp"
+        remaining_seconds:
+          type: integer
+          minimum: 0
+          description: Seconds remaining before session expires.
+        directives:
+          type: object
+          description: Optional directives from the gateway.
+          properties:
+            terminate:
+              type: boolean
+              description: If true, agent must terminate immediately.
+            terminate_reason:
+              type: string
+
+    SessionComplete:
+      type: object
+      required: [result]
+      description: Request body for completing a session and submitting results.
+      properties:
+        result:
+          $ref: "#/components/schemas/ResultEnvelope"
+        end_of_session_attestation:
+          type: object
+          description: Fresh attestation at session end proving enclave integrity.
+          properties:
+            enclave_type:
+              type: string
+              enum: [sgx, sev-snp, tdx, nitro, cca]
+            measurement:
+              type: string
+            measurement_matches_start:
+              type: boolean
+            timestamp:
+              $ref: "#/components/schemas/Timestamp"
+            signature:
+              type: string
+              contentEncoding: base64
+
+    SessionCompleteResponse:
+      type: object
+      required: [session_id, status, result_accepted]
+      description: Response after a session is completed.
+      properties:
+        session_id:
+          $ref: "#/components/schemas/Identifier"
+        status:
+          type: string
+          enum: [completed, failed]
+        result_id:
+          $ref: "#/components/schemas/Identifier"
+        result_accepted:
+          type: boolean
+          description: Whether the result passed validation and scanning.
+        result_rejection_reason:
+          type: string
+          description: If result_accepted is false, the reason for rejection.
+        completed_at:
+          $ref: "#/components/schemas/Timestamp"
+        duration_ms:
+          type: integer
+          minimum: 0
+          description: Total session duration in milliseconds.
+
+    # ---- Result Types ----
+
+    ResultEnvelope:
+      type: object
+      required: [dsp_version, result_id, contract_id, session_id, attestation, extractions, pii_report, result_scan, produced_at]
+      description: |
+        The structured output produced by a processing agent inside an enclave.
+        This is the ONLY artifact that crosses from the owner's infrastructure.
+        It MUST contain structured extractions only -- never raw document content.
+      properties:
+        dsp_version:
+          type: string
+          const: "0.1"
+        result_id:
+          $ref: "#/components/schemas/Identifier"
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        session_id:
+          $ref: "#/components/schemas/Identifier"
+        produced_at:
+          $ref: "#/components/schemas/Timestamp"
+        attestation:
+          type: object
+          required: [enclave_type, measurement, agent_hash, timestamp, signature, claims]
+          properties:
+            enclave_type:
+              type: string
+              enum: [sgx, sev-snp, tdx, nitro, cca]
+            measurement:
+              type: string
+            agent_hash:
+              $ref: "#/components/schemas/HashDigest"
+            timestamp:
+              $ref: "#/components/schemas/Timestamp"
+            signed_by:
+              type: string
+            signature:
+              type: string
+              contentEncoding: base64
+            platform_certificate_chain:
+              type: array
+              items:
+                type: string
+                contentEncoding: base64
+            claims:
+              type: object
+              required: [documents_processed, processing_duration_ms]
+              properties:
+                documents_processed:
+                  type: integer
+                  minimum: 0
+                processing_duration_ms:
+                  type: integer
+                  minimum: 0
+                memory_peak_bytes:
+                  type: integer
+                  minimum: 0
+                network_egress_bytes:
+                  type: integer
+                  minimum: 0
+                network_destinations:
+                  type: array
+                  items:
+                    type: string
+                input_document_hashes:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/HashDigest"
+                output_result_hash:
+                  $ref: "#/components/schemas/HashDigest"
+                sub_agent_chain:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/SubAgentAttestation"
+        extractions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentExtraction"
+        pii_report:
+          $ref: "#/components/schemas/PIIHandlingReport"
+        result_scan:
+          $ref: "#/components/schemas/ResultScanReport"
+        end_of_session_attestation:
+          type: object
+          properties:
+            enclave_type:
+              type: string
+              enum: [sgx, sev-snp, tdx, nitro, cca]
+            measurement:
+              type: string
+            measurement_matches_start:
+              type: boolean
+            timestamp:
+              $ref: "#/components/schemas/Timestamp"
+            signature:
+              type: string
+              contentEncoding: base64
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProcessingError"
+
+    Result:
+      description: |
+        Result as returned by the API. May be the full ResultEnvelope or a
+        filtered view depending on the contract's gateway_visibility settings.
+      oneOf:
+        - $ref: "#/components/schemas/ResultEnvelope"
+        - $ref: "#/components/schemas/ResultMetadataOnly"
+        - $ref: "#/components/schemas/ResultVerdictOnly"
+
+    ResultMetadataOnly:
+      type: object
+      required: [result_id, contract_id, session_id, produced_at, attestation, pii_report, result_scan]
+      description: Result with metadata only (no extraction fields). Returned when gateway_visibility.results is 'metadata_only'.
+      properties:
+        result_id:
+          $ref: "#/components/schemas/Identifier"
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        session_id:
+          $ref: "#/components/schemas/Identifier"
+        produced_at:
+          $ref: "#/components/schemas/Timestamp"
+        attestation:
+          type: object
+          properties:
+            enclave_type:
+              type: string
+            agent_hash:
+              $ref: "#/components/schemas/HashDigest"
+            claims:
+              type: object
+              properties:
+                documents_processed:
+                  type: integer
+                processing_duration_ms:
+                  type: integer
+        pii_report:
+          $ref: "#/components/schemas/PIIHandlingReport"
+        result_scan:
+          $ref: "#/components/schemas/ResultScanReport"
+
+    ResultVerdictOnly:
+      type: object
+      required: [result_id, session_id, produced_at, verdict]
+      description: Minimal result with only pass/fail verdict. Returned when gateway_visibility.results is 'verdict_only'.
+      properties:
+        result_id:
+          $ref: "#/components/schemas/Identifier"
+        session_id:
+          $ref: "#/components/schemas/Identifier"
+        produced_at:
+          $ref: "#/components/schemas/Timestamp"
+        verdict:
+          type: string
+          enum: [pass, fail]
+        pii_compliance:
+          type: string
+          enum: [compliant, violation_detected, unknown]
+        scan_passed:
+          type: boolean
+
+    SubAgentAttestation:
+      type: object
+      required: [step_index, agent_type, agent_hash, purpose]
+      description: Attestation record for a sub-agent in a multi-model pipeline.
+      properties:
+        step_index:
+          type: integer
+          minimum: 0
+        agent_type:
+          type: string
+          enum: [deterministic, ml_structured, llm_freeform]
+        agent_id:
+          type: string
+        agent_hash:
+          $ref: "#/components/schemas/HashDigest"
+        agent_version:
+          type: string
+        purpose:
+          type: string
+          enum: [ocr, layout_detection, table_extraction, classification, key_value_extraction, summarization, translation, validation, custom]
+        input_type:
+          type: string
+          enum: [raw_document, extracted_text, structured_fields, table_data, previous_step_output]
+        output_type:
+          type: string
+          enum: [extracted_text, structured_fields, table_data, classification_labels, free_text, validated_fields]
+        enclave_shared:
+          type: boolean
+          default: true
+        separate_attestation:
+          $ref: "#/components/schemas/AttestationToken"
+        processing_duration_ms:
+          type: integer
+          minimum: 0
+
+    DocumentExtraction:
+      type: object
+      required: [source_document_id, source_document_hash, extraction_type, confidence]
+      description: Structured data extracted from a single document.
+      properties:
+        source_document_id:
+          $ref: "#/components/schemas/Identifier"
+        source_document_hash:
+          $ref: "#/components/schemas/HashDigest"
+        extraction_type:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$"
+        confidence:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+        fields:
+          type: object
+          additionalProperties: true
+          description: Key-value extracted fields. Values MUST comply with PII redaction rules.
+        tables:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedTable"
+        classifications:
+          type: array
+          items:
+            type: object
+            required: [label, confidence]
+            properties:
+              label:
+                type: string
+              confidence:
+                type: number
+                minimum: 0.0
+                maximum: 1.0
+        validation:
+          type: object
+          properties:
+            passed:
+              type: boolean
+            checks:
+              type: array
+              items:
+                type: object
+                required: [name, passed]
+                properties:
+                  name:
+                    type: string
+                  passed:
+                    type: boolean
+                  message:
+                    type: string
+
+    ExtractedTable:
+      type: object
+      required: [name, columns, row_count]
+      description: Structured tabular data extracted from a document.
+      properties:
+        name:
+          type: string
+        columns:
+          type: array
+          items:
+            type: object
+            required: [name, type]
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [string, number, date, boolean, currency]
+              pii_field:
+                type: string
+                description: PII field type if this column contains PII.
+              pii_bearing:
+                type: boolean
+                default: false
+                description: If true, column may contain embedded PII in free-text.
+        row_count:
+          type: integer
+          minimum: 0
+        rows:
+          type: array
+          items:
+            type: array
+            items: {}
+          description: Row data matching columns definition.
+        checksum:
+          $ref: "#/components/schemas/HashDigest"
+
+    PIIHandlingReport:
+      type: object
+      required: [fields_encountered, fields_redacted, raw_content_included, compliance_status]
+      description: Report on how PII was handled during processing.
+      properties:
+        fields_encountered:
+          type: array
+          items:
+            type: string
+        fields_redacted:
+          type: array
+          items:
+            type: string
+        redaction_methods_applied:
+          type: object
+          additionalProperties:
+            type: string
+        fields_allowed_by_contract:
+          type: array
+          items:
+            type: string
+        raw_content_included:
+          type: boolean
+        compliance_status:
+          type: string
+          enum: [compliant, violation_detected, unknown]
+        violations:
+          type: array
+          items:
+            type: object
+            required: [field, description]
+            properties:
+              field:
+                type: string
+              description:
+                type: string
+              severity:
+                type: string
+                enum: [warning, error]
+
+    ResultScanReport:
+      type: object
+      required: [performed, verdicts]
+      description: Report from the result scanning phase.
+      properties:
+        performed:
+          type: boolean
+          description: Whether result scanning was executed.
+        verdicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResultScanVerdict"
+        overall_passed:
+          type: boolean
+        fields_modified_by_scan:
+          type: integer
+          minimum: 0
+        scan_duration_ms:
+          type: integer
+          minimum: 0
+
+    ResultScanVerdict:
+      type: object
+      required: [scanner_type, scanner_version, passed, timestamp]
+      description: Verdict from a single result scanner.
+      properties:
+        scanner_type:
+          type: string
+          enum: [regex, ner, llm_output_filter, statistical, custom]
+        scanner_id:
+          type: string
+        scanner_version:
+          type: string
+        scanner_hash:
+          $ref: "#/components/schemas/HashDigest"
+        passed:
+          type: boolean
+        findings:
+          type: array
+          items:
+            type: object
+            required: [field_path, entity_type, action_taken]
+            properties:
+              field_path:
+                type: string
+                description: JSONPath-like location of the finding.
+              entity_type:
+                type: string
+              confidence:
+                type: number
+                minimum: 0.0
+                maximum: 1.0
+              action_taken:
+                type: string
+                enum: [redacted, suppressed, flagged, allowed_by_contract]
+              original_value_hash:
+                $ref: "#/components/schemas/HashDigest"
+        statistics:
+          type: object
+          properties:
+            fields_scanned:
+              type: integer
+              minimum: 0
+            entities_detected:
+              type: integer
+              minimum: 0
+            entities_redacted:
+              type: integer
+              minimum: 0
+            entities_allowed:
+              type: integer
+              minimum: 0
+            false_positive_override_count:
+              type: integer
+              minimum: 0
+        timestamp:
+          $ref: "#/components/schemas/Timestamp"
+
+    ProcessingError:
+      type: object
+      required: [code, message]
+      description: Non-fatal processing error.
+      properties:
+        code:
+          type: string
+          enum:
+            - document_unreadable
+            - document_encrypted
+            - document_corrupted
+            - extraction_failed
+            - classification_uncertain
+            - pii_detection_uncertain
+            - timeout_partial
+            - memory_limit_reached
+        message:
+          type: string
+          description: Human-readable error description. MUST NOT contain PII.
+        document_id:
+          $ref: "#/components/schemas/Identifier"
+
+    # ---- Audit Types ----
+
+    AuditEventCreate:
+      type: object
+      required: [dsp_version, event_type, actor, action, outcome]
+      description: Request body for appending a new audit event.
+      properties:
+        dsp_version:
+          type: string
+          const: "0.1"
+        event_type:
+          $ref: "#/components/schemas/AuditEventType"
+        actor:
+          $ref: "#/components/schemas/AuditActor"
+        subject:
+          $ref: "#/components/schemas/AuditSubject"
+        action:
+          $ref: "#/components/schemas/AuditAction"
+        outcome:
+          $ref: "#/components/schemas/AuditOutcome"
+        violation_details:
+          $ref: "#/components/schemas/ViolationDetails"
+
+    AuditEvent:
+      type: object
+      required: [event_id, dsp_version, event_type, timestamp, actor, action, outcome, event_hash]
+      description: |
+        An immutable audit event in the Merkle chain. Each event references
+        the hash of the previous event, making the ledger tamper-evident.
+      properties:
+        event_id:
+          $ref: "#/components/schemas/Identifier"
+        dsp_version:
+          type: string
+          const: "0.1"
+        previous_event_hash:
+          $ref: "#/components/schemas/HashDigest"
+        event_hash:
+          $ref: "#/components/schemas/HashDigest"
+        sequence_number:
+          type: integer
+          minimum: 0
+        timestamp:
+          $ref: "#/components/schemas/Timestamp"
+        event_type:
+          $ref: "#/components/schemas/AuditEventType"
+        actor:
+          $ref: "#/components/schemas/AuditActor"
+        subject:
+          $ref: "#/components/schemas/AuditSubject"
+        action:
+          $ref: "#/components/schemas/AuditAction"
+        outcome:
+          $ref: "#/components/schemas/AuditOutcome"
+        violation_details:
+          $ref: "#/components/schemas/ViolationDetails"
+        gateway_received_at:
+          $ref: "#/components/schemas/Timestamp"
+
+    AuditEventType:
+      type: string
+      enum:
+        - manifest.created
+        - manifest.updated
+        - manifest.expired
+        - contract.created
+        - contract.updated
+        - contract.suspended
+        - contract.revoked
+        - contract.expired
+        - session.started
+        - session.completed
+        - session.failed
+        - session.terminated
+        - session.timeout
+        - document.accessed
+        - document.processed
+        - result.produced
+        - result.delivered
+        - result.rejected
+        - result.quarantined
+        - result.scan_passed
+        - result.scan_failed
+        - attestation.verified
+        - attestation.failed
+        - attestation.end_of_session
+        - attestation.heartbeat
+        - sanitization.applied
+        - sanitization.injection_detected
+        - sidecar.network_mismatch
+        - sidecar.anomaly_detected
+        - privacy_budget.consumed
+        - privacy_budget.exceeded
+        - violation.detected
+        - violation.escalated
+        - access.granted
+        - access.denied
+        - access.revoked
+        - ledger.genesis
+        - ledger.checkpoint
+      description: Type of audit event.
+
+    AuditActor:
+      type: object
+      required: [type]
+      additionalProperties: false
+      description: Who performed the audited action.
+      properties:
+        type:
+          type: string
+          enum: [owner, agent, consumer, gateway, system]
+        org_id:
+          $ref: "#/components/schemas/OrgIdentifier"
+        agent_id:
+          $ref: "#/components/schemas/Identifier"
+        user_id:
+          type: string
+          description: Opaque user identifier (not PII).
+
+    AuditSubject:
+      type: object
+      description: What the action was performed on.
+      properties:
+        type:
+          type: string
+          enum: [manifest, contract, session, document, document_set, result, attestation, ledger]
+        manifest_id:
+          $ref: "#/components/schemas/Identifier"
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        session_id:
+          $ref: "#/components/schemas/Identifier"
+        result_id:
+          $ref: "#/components/schemas/Identifier"
+        document_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identifier"
+        document_hashes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HashDigest"
+
+    AuditAction:
+      type: object
+      description: Details of the audited action.
+      properties:
+        operations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Operation"
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        contract_version:
+          type: integer
+        result_id:
+          $ref: "#/components/schemas/Identifier"
+        enclave_attestation:
+          $ref: "#/components/schemas/AttestationToken"
+        reason:
+          type: string
+          description: Human-readable reason. MUST NOT contain PII.
+
+    AuditOutcome:
+      type: object
+      required: [status]
+      additionalProperties: false
+      description: Outcome of the audited action.
+      properties:
+        status:
+          type: string
+          enum: [success, failure, partial, denied]
+        error_code:
+          type: string
+        error_message:
+          type: string
+          description: Human-readable error. MUST NOT contain PII.
+        pii_exposure:
+          type: string
+          enum: [none, redacted_only, violation]
+        documents_touched:
+          type: integer
+          minimum: 0
+        data_egress_bytes:
+          type: integer
+          minimum: 0
+        duration_ms:
+          type: integer
+          minimum: 0
+
+    ViolationDetails:
+      type: object
+      description: Details of a detected violation.
+      properties:
+        violation_type:
+          type: string
+          enum:
+            - unauthorized_network_egress
+            - pii_leak_detected
+            - pii_leak_freetext
+            - pii_reidentification_risk
+            - contract_exceeded
+            - attestation_mismatch
+            - attestation_end_mismatch
+            - session_timeout_exceeded
+            - document_access_denied
+            - storage_policy_violated
+            - agent_hash_mismatch
+            - result_scan_failed
+            - prompt_injection_detected
+            - privacy_budget_exceeded
+            - sidecar_network_mismatch
+            - free_text_policy_violated
+            - heartbeat_missing
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        description:
+          type: string
+          description: What happened. MUST NOT contain PII.
+        evidence:
+          type: object
+          additionalProperties: true
+        auto_action_taken:
+          type: string
+          enum: [none, session_terminated, contract_suspended, access_revoked]
+
+    AuditEventList:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        chain_integrity:
+          type: object
+          description: Merkle chain integrity verification status for the returned range.
+          properties:
+            verified:
+              type: boolean
+              description: Whether the hash chain is intact for all returned events.
+            first_sequence:
+              type: integer
+              description: Sequence number of the first event in this page.
+            last_sequence:
+              type: integer
+              description: Sequence number of the last event in this page.
+
+    # ---- Storage Types ----
+
+    StorageAccessRequest:
+      type: object
+      required: [session_id, contract_id, document_ids, operations, ttl_seconds, attestation]
+      description: Request for a scoped storage access token.
+      properties:
+        session_id:
+          $ref: "#/components/schemas/Identifier"
+        contract_id:
+          $ref: "#/components/schemas/Identifier"
+        document_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identifier"
+          minItems: 1
+          description: Documents to request access for.
+        operations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Operation"
+          minItems: 1
+          description: Operations to request.
+        ttl_seconds:
+          type: integer
+          minimum: 1
+          maximum: 86400
+          description: Requested token lifetime in seconds. Gateway may reduce this.
+        attestation:
+          $ref: "#/components/schemas/AttestationToken"
+
+    # ---- Discovery Types ----
+
+    DSPConfiguration:
+      type: object
+      required: [dsp_version, api_version, endpoints, capabilities, auth_methods, conformance_level]
+      description: DSP gateway configuration and capability discovery.
+      properties:
+        dsp_version:
+          type: string
+          const: "0.1"
+          description: DSP protocol version implemented by this gateway.
+        api_version:
+          type: string
+          const: v0.1
+          description: API version prefix for all endpoints.
+        gateway_id:
+          type: string
+          description: Unique identifier for this gateway instance.
+        endpoints:
+          type: object
+          required: [manifests, contracts, sessions, audit, storage]
+          description: Base paths for each endpoint group.
+          properties:
+            manifests:
+              type: string
+              example: /v0.1/manifests
+            contracts:
+              type: string
+              example: /v0.1/contracts
+            sessions:
+              type: string
+              example: /v0.1/sessions
+            audit:
+              type: string
+              example: /v0.1/audit/events
+            storage:
+              type: string
+              example: /v0.1/storage
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - manifests
+              - contracts
+              - sessions
+              - audit
+              - storage
+              - result_scanning
+              - attestation
+          description: Capabilities supported by this gateway.
+        auth_methods:
+          type: array
+          items:
+            type: string
+            enum: [api_key, oauth2, mtls]
+          description: Authentication methods supported by this gateway.
+        conformance_level:
+          type: string
+          enum: [core, attested, sovereign, ai_safe]
+          description: |
+            DSP conformance level of this gateway:
+            - `core`: basic manifest/contract/session/result flow.
+            - `attested`: core + enclave attestation verification.
+            - `sovereign`: attested + data residency enforcement + audit chain.
+            - `ai_safe`: sovereign + result scanning + privacy budgets + LLM safeguards.
+        supported_enclave_types:
+          type: array
+          items:
+            type: string
+            enum: [sgx, sev-snp, tdx, nitro, cca, sandbox]
+          description: Enclave types this gateway can verify attestations for.
+        contact:
+          type: object
+          description: Contact information for the gateway operator.
+          properties:
+            name:
+              type: string
+            url:
+              type: string
+              format: uri
+            email:
+              type: string
+              format: email

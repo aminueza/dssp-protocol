@@ -1,0 +1,182 @@
+{
+  "$schema": "https://dsp.dev/schema/contract/v0.1",
+  "dsp_version": "0.1",
+  "contract_id": "ct-9e8f7d6c5b4a3928",
+  "version": 2,
+  "status": "active",
+  "owner": {
+    "org_id": "org-acme-corp",
+    "jurisdiction": "EU/NL",
+    "data_residency": "eu-west-1"
+  },
+  "consumer": {
+    "org_id": "org-docuverify",
+    "agent_id": "ag-dv-extractor-v4",
+    "agent_hash": {
+      "algorithm": "sha-256",
+      "value": "abc123def456789abc123def456789abc123def456789abc123def456789abcd"
+    },
+    "agent_versions_allowed": [">=4.0.0", "<5.0.0"],
+    "agent_type": "ml_structured",
+    "sub_agent_policy": {
+      "allowed": true,
+      "max_pipeline_steps": 4,
+      "allowed_purposes": ["ocr", "layout_detection", "table_extraction", "key_value_extraction", "validation"],
+      "require_sub_agent_hashes": true,
+      "cross_enclave_allowed": false,
+      "llm_sub_agent_allowed": false
+    }
+  },
+  "permissions": {
+    "operations": [
+      "extract_text",
+      "extract_tables",
+      "extract_key_value",
+      "classify_document"
+    ],
+    "document_filter": {
+      "classifications": ["financial/bank-statement"],
+      "sensitivity_max": "pii-high",
+      "tags_required": ["annual-audit-2025"]
+    },
+    "max_documents_per_session": 50,
+    "max_concurrent_sessions": 2,
+    "max_session_duration_seconds": 3600,
+    "valid_from": "2026-02-15T00:00:00Z",
+    "valid_until": "2026-04-15T23:59:59Z"
+  },
+  "restrictions": {
+    "network_policy": {
+      "egress": "allow_listed",
+      "allowed_destinations": [
+        {
+          "host": "results.acme-gateway.internal",
+          "port": 443,
+          "purpose": "result_delivery"
+        },
+        {
+          "host": "attestation.acme-gateway.internal",
+          "port": 443,
+          "purpose": "attestation_service"
+        }
+      ]
+    },
+    "storage_policy": "memory_only",
+    "result_policy": {
+      "raw_content_allowed": false,
+      "max_result_size_bytes": 5242880,
+      "pii_redaction_rules": {
+        "account_number": "mask_last_4",
+        "account_holder_name": "hash_sha256",
+        "balance": "allow",
+        "iban": "mask_last_4",
+        "swift_bic": "allow",
+        "tax_id": "suppress",
+        "email_address": "suppress",
+        "phone_number": "suppress",
+        "physical_address": "suppress",
+        "counterparty_name": "hash_sha256",
+        "transaction_description": "suppress",
+        "beneficiary_name": "suppress",
+        "free_text_pii": "suppress"
+      },
+      "custom_redaction_patterns": [
+        {
+          "pattern": "\\b[A-Z]{2}\\d{2}[A-Z0-9]{4}\\d{7}([A-Z0-9]?){0,16}\\b",
+          "method": "mask_last_4",
+          "description": "IBAN pattern detection — mask even if not labeled as IBAN field"
+        },
+        {
+          "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+          "method": "suppress",
+          "description": "US SSN pattern — always suppress"
+        },
+        {
+          "pattern": "\\b[A-Z][a-z]+ [A-Z][a-z]+\\b",
+          "method": "hash_sha256",
+          "description": "Likely person name (First Last pattern) — hash to allow cross-reference without exposing"
+        }
+      ],
+      "free_text_fields_policy": "scan_and_redact",
+      "max_string_field_length": 200,
+      "numeric_precision_policy": {
+        "max_decimal_places": 2,
+        "max_significant_digits": 12,
+        "enforce_standard_rounding": true,
+        "detect_entropy_anomaly": true,
+        "currency_fields_integer_cents": false
+      }
+    },
+    "result_scanning": {
+      "enabled": true,
+      "required_scanners": ["regex", "ner"],
+      "ner_model_requirements": {
+        "min_entity_types": ["PERSON", "ORG", "GPE", "PHONE", "EMAIL", "IBAN", "CREDIT_CARD"],
+        "min_confidence_threshold": 0.7,
+        "approved_scanner_hashes": [
+          {
+            "algorithm": "sha-256",
+            "value": "def456abc789def456abc789def456abc789def456abc789def456abc789defg"
+          }
+        ],
+        "languages": ["en", "nl"]
+      },
+      "scan_failure_action": "block_result"
+    },
+    "document_sanitization": {
+      "enabled": true,
+      "strip_hidden_text": true,
+      "strip_javascript": true,
+      "strip_embedded_files": true,
+      "normalize_unicode": true,
+      "injection_pattern_detection": true,
+      "max_text_length_per_page": 50000,
+      "sanitizer_hash": {
+        "algorithm": "sha-256",
+        "value": "fed987cba654321fed987cba654321fed987cba654321fed987cba654321fedc"
+      }
+    },
+    "privacy_budget": {
+      "k_anonymity_min": 5,
+      "max_unique_values_per_field": 100,
+      "budget_window": "per_contract"
+    },
+    "gateway_visibility": {
+      "manifests": "summary_only",
+      "results": "metadata_only",
+      "audit_events": "summary_only",
+      "cross_engagement_correlation": false
+    }
+  },
+  "attestation_requirements": {
+    "enclave_types": ["sev-snp", "sgx", "tdx"],
+    "measurement_authorities": ["acme-ca", "dsp-root-ca"],
+    "must_include": [
+      "agent_binary_hash",
+      "input_document_hashes",
+      "output_result_hash",
+      "processing_duration",
+      "network_connections_log",
+      "memory_usage_peak",
+      "result_scan_verdict",
+      "sanitizer_execution_proof",
+      "end_of_session_measurement",
+      "sub_agent_chain_declaration"
+    ],
+    "attestation_freshness_seconds": 300,
+    "runtime_verification": {
+      "end_of_session_attestation": true,
+      "periodic_heartbeat_seconds": 60,
+      "sidecar_verifier": {
+        "required": true,
+        "verifier_hash": {
+          "algorithm": "sha-256",
+          "value": "cba321fed987654cba321fed987654cba321fed987654cba321fed987654cbad"
+        },
+        "monitors": ["network_io", "memory_allocation", "dns_queries"]
+      }
+    }
+  },
+  "created_at": "2026-02-15T10:00:00Z",
+  "updated_at": "2026-02-27T15:00:00Z"
+}

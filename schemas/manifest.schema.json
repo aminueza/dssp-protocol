@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsp.dev/schema/manifest/v0.1",
+  "title": "DSP Document Manifest",
+  "description": "Layer 1: Describes documents available for processing WITHOUT containing document content. A manifest is the only thing that crosses the boundary between the document owner and the outside world during discovery. It MUST NOT contain PII, document text, images, or any content that could identify individuals.",
+
+  "type": "object",
+  "required": ["$schema", "manifest_id", "dsp_version", "owner", "created_at", "documents"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "$schema": {
+      "type": "string",
+      "const": "https://dsp.dev/schema/manifest/v0.1"
+    },
+
+    "dsp_version": {
+      "$ref": "common.schema.json#/$defs/ProtocolVersion"
+    },
+
+    "manifest_id": {
+      "$ref": "common.schema.json#/$defs/Identifier",
+      "description": "Unique identifier for this manifest. Prefix: 'mf-'."
+    },
+
+    "owner": {
+      "$ref": "common.schema.json#/$defs/OwnerInfo",
+      "description": "The organization that owns these documents. Determines jurisdiction and residency rules."
+    },
+
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+
+    "expires_at": {
+      "$ref": "common.schema.json#/$defs/Timestamp",
+      "description": "Optional. After this time, the manifest MUST NOT be used for new processing requests. Existing sessions MAY continue until their contract TTL expires."
+    },
+
+    "scope": {
+      "type": "object",
+      "description": "Describes what this manifest covers. Used for filtering and discovery.",
+      "properties": {
+        "engagement_id": {
+          "type": "string",
+          "description": "Optional engagement/project identifier."
+        },
+        "period": {
+          "type": "object",
+          "properties": {
+            "from": { "type": "string", "format": "date" },
+            "to": { "type": "string", "format": "date" }
+          },
+          "description": "Time period covered by these documents."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "Free-form tags for filtering. MUST NOT contain PII."
+        }
+      }
+    },
+
+    "documents": {
+      "type": "array",
+      "minItems": 0,
+      "items": { "$ref": "#/$defs/DocumentEntry" },
+      "description": "List of documents described by this manifest."
+    },
+
+    "summary": {
+      "$ref": "#/$defs/ManifestSummary",
+      "description": "Aggregated statistics. Useful for consumers to understand what's available without iterating all entries."
+    }
+  },
+
+  "$defs": {
+
+    "DocumentEntry": {
+      "type": "object",
+      "required": ["document_id", "classification", "sensitivity", "format", "hash"],
+      "additionalProperties": false,
+      "properties": {
+
+        "document_id": {
+          "$ref": "common.schema.json#/$defs/Identifier",
+          "description": "Unique identifier for this document. Prefix: 'doc-'. This is an opaque ID — it MUST NOT be the filename or contain PII."
+        },
+
+        "classification": {
+          "$ref": "common.schema.json#/$defs/DocumentClassification"
+        },
+
+        "sensitivity": {
+          "$ref": "common.schema.json#/$defs/SensitivityLevel"
+        },
+
+        "format": {
+          "type": "string",
+          "description": "MIME type of the document.",
+          "examples": [
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "image/tiff",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "text/csv"
+          ]
+        },
+
+        "page_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of pages. 0 for non-paginated formats."
+        },
+
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+          "description": "ISO 639-1 language code, optionally with ISO 3166-1 alpha-2 country.",
+          "examples": ["en", "en-US", "pt-BR", "nl", "de"]
+        },
+
+        "hash": {
+          "$ref": "common.schema.json#/$defs/HashDigest",
+          "description": "Cryptographic hash of the document content. Used to verify integrity and link results back to specific versions."
+        },
+
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Document size in bytes."
+        },
+
+        "created_at": {
+          "$ref": "common.schema.json#/$defs/Timestamp",
+          "description": "When the document was added to the owner's storage."
+        },
+
+        "pii_fields_declared": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/PIIFieldType" },
+          "uniqueItems": true,
+          "description": "PII field types that exist in this document. Tells processors what to expect and what redaction rules apply. MUST NOT contain actual PII values."
+        },
+
+        "allowed_operations": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/Operation" },
+          "uniqueItems": true,
+          "description": "Operations the owner permits on this document. A processing contract MUST NOT request operations outside this list."
+        },
+
+        "denied_operations": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/Operation" },
+          "uniqueItems": true,
+          "description": "Operations explicitly forbidden. Takes precedence over allowed_operations."
+        },
+
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "Document-level tags. MUST NOT contain PII."
+        },
+
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Custom key-value metadata. MUST NOT contain PII. Values MUST be strings."
+        }
+      }
+    },
+
+    "ManifestSummary": {
+      "type": "object",
+      "properties": {
+        "total_documents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "classifications": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" },
+          "description": "Count of documents per classification. Example: { 'financial/bank-statement': 12, 'financial/invoice': 45 }"
+        },
+        "sensitivity_levels": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" },
+          "description": "Count of documents per sensitivity level."
+        },
+        "formats": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" },
+          "description": "Count of documents per MIME type."
+        },
+        "languages": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" },
+          "description": "Count of documents per language."
+        }
+      }
+    }
+  }
+}
+
